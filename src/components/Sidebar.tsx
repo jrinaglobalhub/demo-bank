@@ -61,7 +61,7 @@ export default function Sidebar() {
 
     fetchUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       setLoading(true);
       if (session?.user) {
         const { data: profile } = await supabase
