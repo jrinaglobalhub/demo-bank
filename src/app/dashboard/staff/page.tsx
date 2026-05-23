@@ -57,7 +57,7 @@ export default function StaffManagementDesk() {
       setActiveUser(user);
 
       // Security access check: Clerks are redirected out of here immediately
-      if (user && user.role !== 'manager') {
+      if (user && user.role?.toLowerCase() !== 'manager') {
         router.replace('/dashboard');
         return;
       }
@@ -178,7 +178,7 @@ export default function StaffManagementDesk() {
   );
 
   // If loading or if activeUser is Clerk, render a loading/blocked screen
-  if (loading || (activeUser && activeUser.role !== 'manager')) {
+  if (loading || (activeUser && activeUser.role?.toLowerCase() !== 'manager')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4">
         <div className="flex flex-col items-center gap-3">

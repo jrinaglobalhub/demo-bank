@@ -155,7 +155,7 @@ export default function BiometricPage() {
         <div className="lg:col-span-7 space-y-6">
           
           {/* MANAGER PORTAL (Admin-Approved workflow) */}
-          {currentProfile?.role === 'manager' ? (
+          {currentProfile?.role?.toLowerCase() === 'manager' ? (
             <div className="glass-panel p-6 rounded-3xl border border-indigo-500/15 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-radial-gradient(circle, rgba(99,102,241,0.05) 0%, transparent 75%) pointer-events-none" />
               
