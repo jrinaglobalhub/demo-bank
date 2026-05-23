@@ -69,7 +69,7 @@ export const db = {
   // --- Session Profile & Active User ---
   async getActiveUser(): Promise<Profile> {
     if (typeof window === 'undefined') return MOCK_PROFILES[1]; // server-side default
-    
+
     if (this.isSupabaseEnabled() && supabase) {
       const { data: authUser } = await supabase.auth.getUser();
       if (authUser?.user) {
@@ -93,14 +93,14 @@ export const db = {
     const profiles = getLocalData<Profile[]>(STORAGE_KEYS.PROFILES, MOCK_PROFILES);
     const target = profiles.find((p) => p.role === role) || profiles[1];
     setLocalData(STORAGE_KEYS.ACTIVE_USER_ID, target.id);
-    
+
     // Log the switch
     await this.createAuditLog(
       'Role switched',
       `Active profile switched to ${target.name} (${target.role.toUpperCase()})`,
       'AUTH'
     );
-    
+
     return target;
   },
 
@@ -124,7 +124,7 @@ export const db = {
     } else {
       list = getLocalData<Customer[]>(STORAGE_KEYS.CUSTOMERS, MOCK_CUSTOMERS);
     }
-    
+
     // Hydrate persistent balances dynamically if missing
     return list.map((cust) => {
       const bal = cust.balance !== undefined ? cust.balance : ((cust.name.charCodeAt(0) * 452) + 12400);
@@ -179,9 +179,9 @@ export const db = {
   },
 
   async updateCustomerBalance(
-    customerId: string, 
-    newBalance: number, 
-    type: 'DEPOSIT' | 'WITHDRAWAL', 
+    customerId: string,
+    newBalance: number,
+    type: 'DEPOSIT' | 'WITHDRAWAL',
     amount: number
   ): Promise<Customer> {
     const list = getLocalData<Customer[]>(STORAGE_KEYS.CUSTOMERS, MOCK_CUSTOMERS);
@@ -189,7 +189,7 @@ export const db = {
     if (index === -1) {
       throw new Error('Customer profile not found.');
     }
-    
+
     const cust = list[index];
     const updatedCustomer: Customer = {
       ...cust,
@@ -287,7 +287,7 @@ export const db = {
   },
 
   async updateCustomerStatus(
-    id: string, 
+    id: string,
     status: 'ACTIVE' | 'SUSPENDED' | 'PENDING_SUSPENSION' | 'VERIFIED',
     reason?: string,
     requestedByClerkName?: string
@@ -297,18 +297,18 @@ export const db = {
     if (this.isSupabaseEnabled() && supabase) {
       const { error } = await supabase
         .from('customers')
-        .update({ 
-          status, 
-          suspension_reason: reason || null, 
-          suspension_requested_by: requestedByClerkName || null 
+        .update({
+          status,
+          suspension_reason: reason || null,
+          suspension_requested_by: requestedByClerkName || null
         })
         .eq('id', id);
       if (error) return false;
     } else {
       const list = getLocalData<Customer[]>(STORAGE_KEYS.CUSTOMERS, []).map((c) => {
         if (c.id === id) {
-          return { 
-            ...c, 
+          return {
+            ...c,
             status,
             suspension_reason: reason || undefined,
             suspension_requested_by: requestedByClerkName || undefined
@@ -347,14 +347,14 @@ export const db = {
       : getLocalData<GoldLoan[]>(STORAGE_KEYS.GOLD_LOANS, MOCK_GOLD_LOANS);
 
     const customers = await this.getCustomers();
-    
+
     // Hydrate customer names and calculate missing default metrics
-    return loans.map((loan) => {
+    return loans.map((loan: any) => {
       const cust = customers.find((c) => c.id === loan.customer_id);
       const paid = loan.paid_amount !== undefined ? loan.paid_amount : 0;
       const remaining = loan.remaining_balance !== undefined ? loan.remaining_balance : loan.loan_amount;
       const pct = loan.paid_percentage !== undefined ? loan.paid_percentage : 0;
-      
+
       // Calculate 6 months past creation date if maturity_date is missing
       const cDate = new Date(loan.created_at);
       cDate.setMonth(cDate.getMonth() + 6);
@@ -375,7 +375,7 @@ export const db = {
     loanData: Omit<GoldLoan, 'id' | 'created_by' | 'created_at'>
   ): Promise<GoldLoan> {
     const activeUser = await this.getActiveUser();
-    
+
     // Default maturity date to exactly 6 months from today
     const mDate = new Date();
     mDate.setMonth(mDate.getMonth() + 6);
@@ -425,11 +425,11 @@ export const db = {
 
   async submitRepayment(loanId: string, amount: number): Promise<GoldLoan> {
     const activeUser = await this.getActiveUser();
-    
+
     // Fetch and update Local Storage record
     const list = getLocalData<GoldLoan[]>(STORAGE_KEYS.GOLD_LOANS, MOCK_GOLD_LOANS);
     const loanIndex = list.findIndex((l) => l.id === loanId);
-    
+
     if (loanIndex === -1) {
       throw new Error('Gold loan record not found.');
     }
