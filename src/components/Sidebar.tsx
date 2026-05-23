@@ -22,6 +22,13 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -79,6 +86,7 @@ export default function Sidebar() {
     },
   ];
 
+
   const toggleSidebar = () => setIsOpen(!isOpen);
 
   return (
@@ -118,8 +126,8 @@ export default function Sidebar() {
         {/* User Card */}
         <div className="mx-4 my-4 p-4 bg-zinc-900/40 border border-zinc-900 rounded-xl flex items-center gap-3">
           <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-bold ${profile?.role === 'manager'
-              ? 'bg-indigo-600/15 text-indigo-400'
-              : 'bg-emerald-600/15 text-emerald-400'
+            ? 'bg-indigo-600/15 text-indigo-400'
+            : 'bg-emerald-600/15 text-emerald-400'
             }`}>
             {profile?.name.charAt(0) || 'U'}
           </div>
@@ -157,8 +165,8 @@ export default function Sidebar() {
 
                   {item.badge && (
                     <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md ${item.badge.includes('Approval')
-                        ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
-                        : 'bg-zinc-800 text-zinc-400'
+                      ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+                      : 'bg-zinc-800 text-zinc-400'
                       }`}>
                       {item.badge}
                     </span>
@@ -187,11 +195,3 @@ export default function Sidebar() {
     </>
   );
 }
-
-const [isMounted, setIsMounted] = useState(false);
-const [user, setUser] = useState<any>(null);
-const [loading, setLoading] = useState(true);
-
-useEffect(() => {
-  setIsMounted(true);
-}, []);
