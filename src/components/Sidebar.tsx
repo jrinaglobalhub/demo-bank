@@ -39,7 +39,6 @@ export default function Sidebar() {
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session?.user) {
-          // 406 Error തടയാൻ ഒരു സുരക്ഷിത try-catch ബ്ലോക്ക്
           try {
             const { data: profile } = await supabase
               .from('profiles')
@@ -55,7 +54,6 @@ export default function Sidebar() {
             });
           } catch (tableError) {
             console.error("Profiles table fetch bypassed due to API error:", tableError);
-            // ഡാറ്റാബേസ് എറർ വന്നാൽ സെഷൻ ഇമെയിൽ മാത്രം വെച്ച് മുന്നോട്ട് പോകുന്നു
             setUser({
               id: session.user.id,
               email: session.user.email,
@@ -107,10 +105,15 @@ export default function Sidebar() {
     };
   }, []);
 
-  // 💡 ULTIMATE ROLE CHECKER (ഇമെയിൽ ഐഡി 'manager' ആണെങ്കിൽ ഫുൾ ആക്സസ് നൽകുന്നു)
-  const isManagerEmail = user?.email?.toLowerCase().includes('manager') || user?.email?.toLowerCase().includes('jrina.online');
+  // 💡 PERFECT CASE-INSENSITIVE FALLBACK LOGIC (Domain collision fixed)
+  const emailLower = user?.email?.toLowerCase() || '';
+
+  // ഇമെയിലിൽ കൃത്യമായി 'manager' എന്ന് ഉണ്ടോ എന്ന് മാത്രം നോക്കുന്നു ('jrina.online' ഇവിടെ ഒഴിവാക്കി)
+  const isManagerEmail = emailLower.includes('manager');
   const dbRole = user?.role ? String(user.role).toLowerCase() : null;
-  const currentRole = dbRole === 'manager' || isManagerEmail ? 'manager' : (dbRole || 'clerk');
+
+  // ഒന്നുകിൽ ഇമെയിലിൽ manager വേണം അല്ലെങ്കിൽ dbRole manager ആയിരിക്കണം
+  const currentRole = isManagerEmail || dbRole === 'manager' ? 'manager' : (dbRole || 'clerk');
 
   const navItems = [
     {
