@@ -368,7 +368,7 @@ export const db = {
         maturity_date: maturity,
         customer_name: cust ? cust.name : 'Unknown Customer',
       };
-    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   },
 
   async createGoldLoan(
@@ -526,14 +526,14 @@ export const db = {
     const profiles = await this.getAllProfiles();
 
     // Hydrate employee metadata
-    return creds.map((cred) => {
+    return creds.map((cred: any) => {
       const prof = profiles.find((p) => p.id === cred.profile_id);
       return {
         ...cred,
         employee_name: prof ? prof.name : 'Unknown Employee',
         employee_role: prof ? prof.role : 'clerk',
       };
-    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   },
 
   async registerBiometric(credentialName: string): Promise<BiometricCredential> {
