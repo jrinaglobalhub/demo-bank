@@ -16,8 +16,7 @@ export const isSupabaseConfigured = (): boolean => {
 
 // Singleton browser client for client-side components
 export const createBrowserSupabaseClient = () => {
-  if (!isSupabaseConfigured()) return null;
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  return supabase;
 };
 
 // 🛠️ FIX: TypeScript ബിൽഡ് എറർ ഒഴിവാക്കാൻ 'as any' അല്ലെങ്കിൽ ടൈപ്പ് കാസ്റ്റിംഗ് നൽകുന്നു

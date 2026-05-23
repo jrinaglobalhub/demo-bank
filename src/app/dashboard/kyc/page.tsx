@@ -548,7 +548,7 @@ export default function KycModule() {
           .or(`phone.eq.${newPhone},email.eq.${newEmail},aadhaar_number.eq.${newAadhaar},pan_number.eq.${newPan}`);
         
         if (existingCustomers && existingCustomers.length > 0) {
-          existingCustomers.forEach(c => {
+          existingCustomers.forEach((c: any) => {
             if (c.phone === newPhone) errors.phone = `❌ Duplication Error: A customer profile with this mobile number already exists.`;
             if (c.email === newEmail) errors.email = `❌ Duplication Error: A customer profile with this email address already exists.`;
             if (c.aadhaar_number === newAadhaar) errors.aadhaar_number = `❌ Duplication Error: A customer profile with this Aadhaar already exists.`;

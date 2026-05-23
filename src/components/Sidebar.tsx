@@ -19,7 +19,7 @@ import { supabase } from "@/lib/supabase";
 
 interface Profile {
   id: string;
-  full_name: string;
+  name: string;
   role: 'manager' | 'clerk' | 'teller' | 'loan_officer' | 'auditor';
 }
 
@@ -33,42 +33,10 @@ export default function Sidebar() {
   useEffect(() => {
     setIsMounted(true);
 
-    const fetchUser = async () => {
-      setLoading(true);
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session?.user) {
-          try {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              full_name: profile?.full_name || '',
-              role: profile?.role || null
-            });
-          } catch (tableError) {
-            console.error("Profiles table fetch bypassed due to API error:", tableError);
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              full_name: '',
-              role: null
-            });
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching user session:", err);
-      }
+    if (!supabase) {
       setLoading(false);
-    };
-
-    fetchUser();
+      return;
+    }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       setLoading(true);
@@ -83,14 +51,15 @@ export default function Sidebar() {
           setUser({
             id: session.user.id,
             email: session.user.email,
-            full_name: profile?.full_name || '',
+            name: profile?.name || profile?.full_name || '',
             role: profile?.role || null
           });
         } catch (e) {
+          console.error("Error fetching profile on auth change:", e);
           setUser({
             id: session.user.id,
             email: session.user.email,
-            full_name: '',
+            name: '',
             role: null
           });
         }
@@ -163,8 +132,6 @@ export default function Sidebar() {
 
   const toggleSidebar = () => setIsOpen(!isOpen);
 
-  if (!isMounted) return null;
-
   return (
     <>
       {/* Mobile Top Bar */}
@@ -208,7 +175,7 @@ export default function Sidebar() {
               ? 'bg-indigo-600/15 text-indigo-400'
               : 'bg-emerald-600/15 text-emerald-400'
               }`}>
-              {user?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
+              {user?.name?.charAt(0) || user?.email?.charAt(0) || 'U'}
             </div>
           )}
 
@@ -221,10 +188,10 @@ export default function Sidebar() {
             ) : (
               <>
                 <p className="text-xs font-bold text-zinc-200 truncate">
-                  {user?.full_name || user?.email || 'Unknown User'}
+                  {user?.name || user?.email || 'Guest'}
                 </p>
                 <p className="text-[10px] text-zinc-500 uppercase tracking-wide truncate">
-                  {currentRole}
+                  {user ? currentRole : 'Guest'}
                 </p>
               </>
             )}

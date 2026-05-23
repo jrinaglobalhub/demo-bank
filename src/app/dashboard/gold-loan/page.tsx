@@ -132,7 +132,7 @@ export default function GoldLoanModule() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'gold_loans' },
-        (payload) => {
+        (payload: any) => {
           console.log('Real-time Gold Loan Change received!', payload);
           // Auto-fetch fresh data whenever any mutation occurs in the table
           loadData();
