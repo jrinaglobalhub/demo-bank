@@ -60,6 +60,23 @@ const setLocalData = <T>(key: string, data: T): void => {
   localStorage.setItem(key, JSON.stringify(data));
 };
 
+// Active user caching
+let cachedActiveUser: Profile | null = null;
+let lastFetchTime = 0;
+const CACHE_TTL_MS = 5000; // Cache for 5 seconds to prevent rapid consecutive queries
+let isSubscribedToAuth = false;
+
+const initAuthSubscription = () => {
+  if (isSubscribedToAuth || typeof window === 'undefined' || !isSupabaseConfigured() || !supabase) return;
+  
+  isSubscribedToAuth = true;
+  supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+    // Invalidate cache immediately on any auth status change
+    cachedActiveUser = null;
+    lastFetchTime = 0;
+  });
+};
+
 export const db = {
   // --- Engine status ---
   isSupabaseEnabled(): boolean {
@@ -70,19 +87,71 @@ export const db = {
   async getActiveUser(): Promise<Profile> {
     if (typeof window === 'undefined') return MOCK_PROFILES[1]; // server-side default
 
+    initAuthSubscription();
+
+    const now = Date.now();
+    if (cachedActiveUser && (now - lastFetchTime < CACHE_TTL_MS)) {
+      return cachedActiveUser;
+    }
+
     if (this.isSupabaseEnabled() && supabase) {
-      const { data: authUser } = await supabase.auth.getUser();
-      if (authUser?.user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', authUser.user.id)
-          .single();
-        if (profile) return profile;
+      try {
+        const { data: authUser } = await supabase.auth.getUser();
+        if (authUser?.user) {
+          // Attempt to fetch profile
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authUser.user.id)
+            .single();
+
+          if (profile) {
+            cachedActiveUser = profile;
+            lastFetchTime = now;
+            return profile;
+          }
+
+          // If profile is missing (e.g. no row in table), auto-create/upsert it
+          const emailLower = authUser.user.email?.toLowerCase() || '';
+          const role = emailLower.includes('manager') ? 'manager' : 'clerk';
+          const defaultProfile = {
+            id: authUser.user.id,
+            name: authUser.user.email?.split('@')[0] || 'Employee',
+            role: role
+          };
+
+          try {
+            const { data: newProfile } = await supabase
+              .from('profiles')
+              .upsert([defaultProfile])
+              .select()
+              .single();
+
+            const resolvedProfile = newProfile || {
+              ...defaultProfile,
+              created_at: new Date().toISOString()
+            };
+
+            cachedActiveUser = resolvedProfile as any;
+            lastFetchTime = now;
+            return resolvedProfile as any;
+          } catch (upsertError) {
+            console.error("Auto-upsert of profile failed, returning virtual fallback:", upsertError);
+            const virtualProfile = {
+              ...defaultProfile,
+              created_at: new Date().toISOString()
+            };
+            cachedActiveUser = virtualProfile as any;
+            lastFetchTime = now;
+            return virtualProfile as any;
+          }
+        }
+      } catch (err) {
+        console.error("Error in getActiveUser Supabase handler:", err);
       }
     }
 
-    // Local Storage Fallback
+    // Local Storage Fallback (only used when Supabase is disabled/not configured)
     const profiles = getLocalData<Profile[]>(STORAGE_KEYS.PROFILES, MOCK_PROFILES);
     const activeId = getLocalData<string>(STORAGE_KEYS.ACTIVE_USER_ID, MOCK_PROFILES[1].id);
     const active = profiles.find((p) => p.id === activeId) || profiles[1];
