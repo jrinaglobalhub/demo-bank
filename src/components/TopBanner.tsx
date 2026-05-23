@@ -5,6 +5,7 @@ import { User, Shield, Calendar, Database, Sparkles, RefreshCw } from 'lucide-re
 import { db } from '@/lib/db';
 import { Profile } from '@/lib/mockData';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 export default function TopBanner() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -50,6 +51,12 @@ export default function TopBanner() {
         'AUTH'
       );
     }
+    
+    if (supabase) {
+      localStorage.removeItem('session_start_time');
+      await supabase.auth.signOut();
+    }
+    
     // Simple redirect back to login screen
     router.push('/');
   };

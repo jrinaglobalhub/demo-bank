@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Fingerprint, CheckCircle2, ShieldAlert, KeyRound, Loader2 } from 'lucide-react';
 import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 
 interface BiometricScannerProps {
   onSuccess?: () => void;
@@ -83,8 +84,21 @@ export default function BiometricScanner({ onSuccess, onCancel, mode, customUser
             const pendingCred = relevantCreds.find(c => c.status === 'PENDING_APPROVAL');
 
             if (approvedCred) {
-              // Switch profile session to this user
-              await db.switchActiveUser(targetRole);
+              // Real Supabase Session Login based on biometrics match
+              if (supabase) {
+                const email = targetRole === 'manager' ? 'manager@jrina.online' : 'clerk@jrina.online';
+                const password = targetRole === 'manager' ? 'JRINA@123' : 'Clerk@jrina';
+                const { error: signInErr } = await supabase.auth.signInWithPassword({
+                  email,
+                  password
+                });
+                if (signInErr) {
+                  throw new Error(`Biometric login failed to authenticate session: ${signInErr.message}`);
+                }
+              } else {
+                await db.switchActiveUser(targetRole);
+              }
+
               setScanState('success');
               setStatusText(`Access Granted! Welcome back.`);
               

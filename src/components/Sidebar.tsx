@@ -38,9 +38,59 @@ export default function Sidebar() {
       return;
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+    // 1. Hard Refresh (Reload) Detection
+    const navigation = typeof window !== 'undefined' && performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+    const isReload = navigation && navigation.type === 'reload';
+    
+    if (isReload) {
+      console.log("[Auth] Page reload detected. Forcing logout as requested.");
+      localStorage.removeItem('session_start_time');
+      supabase.auth.signOut().then(() => {
+        window.location.href = '/';
+      });
+      return;
+    }
+
+    // 2. Fetch session immediately on mount to prevent perpetual loading
+    const loadSession = async () => {
       setLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          // Initialize session start time if not set
+          if (!localStorage.getItem('session_start_time')) {
+            localStorage.setItem('session_start_time', Date.now().toString());
+          }
+
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          setUser({
+            id: session.user.id,
+            email: session.user.email,
+            name: profile?.name || profile?.full_name || '',
+            role: profile?.role || null
+          });
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        console.error("Error loading session on mount:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSession();
+
+    // 3. Setup auth change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       if (session?.user) {
+        if (!localStorage.getItem('session_start_time')) {
+          localStorage.setItem('session_start_time', Date.now().toString());
+        }
         try {
           const { data: profile } = await supabase
             .from('profiles')
@@ -55,7 +105,6 @@ export default function Sidebar() {
             role: profile?.role || null
           });
         } catch (e) {
-          console.error("Error fetching profile on auth change:", e);
           setUser({
             id: session.user.id,
             email: session.user.email,
@@ -64,13 +113,30 @@ export default function Sidebar() {
           });
         }
       } else {
+        localStorage.removeItem('session_start_time');
         setUser(null);
       }
       setLoading(false);
     });
 
+    // 4. Session timeout check (1 hour)
+    const timeoutInterval = setInterval(async () => {
+      const startTimeStr = localStorage.getItem('session_start_time');
+      if (startTimeStr) {
+        const startTime = parseInt(startTimeStr, 10);
+        const elapsed = Date.now() - startTime;
+        if (elapsed > 1 * 60 * 60 * 1000) { // 1 hour
+          console.log("[Auth] Session expired (1 hour limit reached). Logging out.");
+          localStorage.removeItem('session_start_time');
+          await supabase.auth.signOut();
+          window.location.href = '/';
+        }
+      }
+    }, 5000);
+
     return () => {
       subscription.unsubscribe();
+      clearInterval(timeoutInterval);
     };
   }, []);
 
