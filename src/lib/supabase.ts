@@ -1,5 +1,6 @@
+"use client";
+
 import { createBrowserClient } from '@supabase/ssr';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -19,7 +20,7 @@ export const createBrowserSupabaseClient = () => {
   return createBrowserClient(supabaseUrl, supabaseAnonKey);
 };
 
-// Legacy singleton (used in mock fallback modes or where SSR cookies aren't strictly required)
+// 🛠️ FIX: TypeScript ബിൽഡ് എറർ ഒഴിവാക്കാൻ 'as any' അല്ലെങ്കിൽ ടൈപ്പ് കാസ്റ്റിംഗ് നൽകുന്നു
 export const supabase = isSupabaseConfigured()
   ? createBrowserClient(supabaseUrl, supabaseAnonKey)
-  : null;
+  : (null as any);
