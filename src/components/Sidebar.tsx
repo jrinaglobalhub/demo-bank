@@ -15,30 +15,83 @@ import {
   X,
   Landmark
 } from 'lucide-react';
-import { db } from '@/lib/db';
-import { Profile } from '@/lib/mockData';
+import { supabase } from "@/lib/supabase";
+
+interface Profile {
+  id: string;
+  full_name: string;
+  role: 'manager' | 'clerk' | 'teller' | 'loan_officer' | 'auditor';
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
+
+    const fetchUser = async () => {
+      setLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          // സുപബേസ് യൂസർ ഡാറ്റയും പ്രൊഫൈൽ റോൾ ഡാറ്റയും കൃത്യമായി കമ്പൈൻ ചെയ്യുന്നു
+          setUser({
+            id: session.user.id,
+            email: session.user.email,
+            full_name: profile?.full_name || '',
+            role: profile?.role || null
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching user session:", err);
+      }
+      setLoading(false);
+    };
+
+    fetchUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setLoading(true);
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        setUser({
+          id: session.user.id,
+          email: session.user.email,
+          full_name: profile?.full_name || '',
+          role: profile?.role || null
+        });
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  useEffect(() => {
-    const loadProfile = async () => {
-      const active = await db.getActiveUser();
-      setProfile(active);
-    };
-    loadProfile();
-    const interval = setInterval(loadProfile, 1500);
-    return () => clearInterval(interval);
-  }, []);
+  // 💡 CASE-INSENSITIVE FALLBACK SECURITY
+  // ഡാറ്റാബേസിൽ റോൾ ക്യാപിറ്റൽ ലെറ്ററിൽ ആണെങ്കിലും അതിനെ സ്മോൾ ലെറ്ററിലേക്ക് മാറ്റുന്നു
+  const isManagerEmail = user?.email?.toLowerCase().includes('manager');
+  const dbRole = user?.role ? String(user.role).toLowerCase() : null;
+  const currentRole = dbRole || (isManagerEmail ? 'manager' : 'clerk');
 
   const navItems = [
     {
@@ -76,7 +129,7 @@ export default function Sidebar() {
       href: '/dashboard/biometric',
       icon: Fingerprint,
       roles: ['manager', 'clerk', 'teller', 'loan_officer', 'auditor'],
-      badge: profile?.role === 'manager' ? 'Admin Approval' : 'Enroll Key',
+      badge: currentRole === 'manager' ? 'Admin Approval' : 'Enroll Key',
     },
     {
       name: 'Chronological Audit',
@@ -86,8 +139,9 @@ export default function Sidebar() {
     },
   ];
 
-
   const toggleSidebar = () => setIsOpen(!isOpen);
+
+  if (!isMounted) return null;
 
   return (
     <>
@@ -123,57 +177,87 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* User Card */}
+        {/* User Card (പ്രൊഫൈൽ സെക്ഷൻ) */}
         <div className="mx-4 my-4 p-4 bg-zinc-900/40 border border-zinc-900 rounded-xl flex items-center gap-3">
-          <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-bold ${profile?.role === 'manager'
-            ? 'bg-indigo-600/15 text-indigo-400'
-            : 'bg-emerald-600/15 text-emerald-400'
-            }`}>
-            {profile?.name.charAt(0) || 'U'}
-          </div>
-          <div className="overflow-hidden">
-            <p className="text-xs font-bold text-zinc-200 truncate">{profile?.name || 'Loading...'}</p>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wide truncate">{profile?.role || 'Guest'}</p>
+          {loading ? (
+            <div className="h-8 w-8 rounded-lg bg-zinc-800 animate-pulse" />
+          ) : (
+            <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-bold ${currentRole === 'manager'
+              ? 'bg-indigo-600/15 text-indigo-400'
+              : 'bg-emerald-600/15 text-emerald-400'
+              }`}>
+              {user?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
+            </div>
+          )}
+
+          <div className="overflow-hidden flex-1">
+            {loading ? (
+              <div className="space-y-2">
+                <div className="h-3 w-20 bg-zinc-800 animate-pulse rounded" />
+                <div className="h-2 w-12 bg-zinc-800 animate-pulse rounded" />
+              </div>
+            ) : (
+              <>
+                <p className="text-xs font-bold text-zinc-200 truncate">
+                  {user?.full_name || user?.email || 'Unknown User'}
+                </p>
+                <p className="text-[10px] text-zinc-500 uppercase tracking-wide truncate">
+                  {currentRole}
+                </p>
+              </>
+            )}
           </div>
         </div>
 
         {/* Navigation Items */}
         <nav className="flex-1 px-4 space-y-1 py-2 overflow-y-auto">
-          {navItems
-            .filter((item) => !item.roles || (profile && item.roles.includes(profile.role)))
-            .map((item) => {
-              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-              const Icon = item.icon;
+          {loading ? (
+            <div className="space-y-3 px-4 py-2">
+              <div className="h-9 w-full bg-zinc-900/30 animate-pulse rounded-xl" />
+              <div className="h-9 w-full bg-zinc-900/30 animate-pulse rounded-xl" />
+              <div className="h-9 w-full bg-zinc-900/30 animate-pulse rounded-xl" />
+            </div>
+          ) : (
+            navItems
+              .filter((item) => {
+                if (!item.roles) return true;
+                // ടാബിലെ റോളുകളും നമ്മുടെ കറന്റ് റോളും കൃത്യമായി മാച്ച് ചെയ്യുന്നുണ്ടെന്ന് ഉറപ്പാക്കുന്നു
+                return item.roles.includes(currentRole);
+              })
+              .map((item) => {
+                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                const Icon = item.icon;
 
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  onClick={() => setIsOpen(false)}
-                  className={`
-                    flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-semibold transition-all group cursor-pointer
-                    ${isActive
-                      ? 'bg-indigo-600/10 text-indigo-300 border-l-4 border-indigo-500'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30'}
-                  `}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className={`h-5 w-5 transition-transform group-hover:scale-105 ${isActive ? 'text-indigo-400' : 'text-zinc-500 group-hover:text-zinc-400'
-                      }`} />
-                    <span>{item.name}</span>
-                  </div>
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setIsOpen(false)}
+                    className={`
+                      flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-semibold transition-all group cursor-pointer
+                      ${isActive
+                        ? 'bg-indigo-600/10 text-indigo-300 border-l-4 border-indigo-500'
+                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30'}
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className={`h-5 w-5 transition-transform group-hover:scale-105 ${isActive ? 'text-indigo-400' : 'text-zinc-500 group-hover:text-zinc-400'
+                        }`} />
+                      <span>{item.name}</span>
+                    </div>
 
-                  {item.badge && (
-                    <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md ${item.badge.includes('Approval')
-                      ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
-                      : 'bg-zinc-800 text-zinc-400'
-                      }`}>
-                      {item.badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
+                    {item.badge && (
+                      <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md ${item.badge.includes('Approval')
+                        ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+                        : 'bg-zinc-800 text-zinc-400'
+                        }`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })
+          )}
         </nav>
 
         {/* Sidebar Footer Branding */}
