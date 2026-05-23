@@ -618,18 +618,34 @@ export const db = {
     };
 
     if (this.isSupabaseEnabled() && supabase) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('biometric_credentials')
-        .insert([{ ...newCred, id: undefined }])
+        .insert([{
+          profile_id: activeUser.id,
+          credential_name: credentialName,
+          credential_id: newCred.credential_id,
+          public_key: newCred.public_key,
+          status: 'PENDING_APPROVAL'
+        }])
         .select()
         .single();
+
+      if (error) {
+        console.error('Supabase biometric registration failed:', error);
+        throw new Error(`Database registration failed: ${error.message}`);
+      }
+
       if (data) {
         await this.createAuditLog(
           'Biometric Requested',
           `Biometric key registration '${credentialName}' requested by ${activeUser.name}. Status: PENDING APPROVAL`,
           'BIOMETRIC'
         );
-        return data;
+        return {
+          ...data,
+          employee_name: activeUser.name,
+          employee_role: activeUser.role
+        };
       }
     }
 
@@ -812,11 +828,38 @@ export const db = {
   // --- Audit Logs ---
   async getAuditLogs(): Promise<AuditLog[]> {
     if (this.isSupabaseEnabled() && supabase) {
-      const { data } = await supabase
-        .from('audit_logs')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (data) return data;
+      try {
+        const { data, error } = await supabase
+          .from('audit_logs')
+          .select(`
+            id,
+            action_title,
+            action_details,
+            module,
+            profile_id,
+            created_at,
+            profiles (
+              name
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching audit logs from Supabase:', error);
+        } else if (data) {
+          return (data as any[]).map((log: any) => ({
+            id: log.id,
+            action: log.action_title,
+            details: log.action_details,
+            performed_by: log.profile_id,
+            performed_by_name: log.profiles?.name || 'System',
+            log_type: log.module as any,
+            created_at: log.created_at
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to get audit logs from Supabase:', err);
+      }
     }
     const list = getLocalData<AuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, MOCK_AUDIT_LOGS);
     return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -850,7 +893,20 @@ export const db = {
     };
 
     if (this.isSupabaseEnabled() && supabase) {
-      await supabase.from('audit_logs').insert([{ ...log, id: undefined }]);
+      try {
+        const dbLog = {
+          action_title: action,
+          action_details: details,
+          module: logType,
+          profile_id: activeId
+        };
+        const { error } = await supabase.from('audit_logs').insert([dbLog]);
+        if (error) {
+          console.error('Supabase audit log insertion failed:', error);
+        }
+      } catch (err) {
+        console.error('Error inserting audit log to Supabase:', err);
+      }
     } else {
       if (typeof window !== 'undefined') {
         const list = getLocalData<AuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, MOCK_AUDIT_LOGS);
