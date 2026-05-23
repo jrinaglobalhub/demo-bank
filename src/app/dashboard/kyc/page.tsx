@@ -103,25 +103,38 @@ export default function KycModule() {
     return () => clearInterval(interval);
   }, [emailOtpSent, emailCountdown]);
 
-  // Trigger Mock Photo Upload
+  // Trigger Real Photo Upload
   const handlePhotoUploadSimulated = async () => {
+    // Dynamic file picker
+    const file = await new Promise<File | null>((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e: any) => {
+        const selected = e.target.files?.[0] || null;
+        resolve(selected);
+      };
+      input.click();
+    });
+
+    if (!file) return;
+
     setUploadingPhoto(true);
     try {
       const supabase = createBrowserSupabaseClient();
       if (!supabase) throw new Error('Supabase not configured');
 
-      const blob = new Blob(['Mock image content'], { type: 'image/png' });
-      const file = new File([blob], `photo_upload_${Date.now()}.png`, { type: 'image/png' });
-      
+      const fileName = `photo_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
       const { data, error } = await supabase.storage
         .from('profile-photos')
-        .upload(`public/${file.name}`, file, { upsert: true });
+        .upload(`public/${fileName}`, file, { upsert: true });
         
       if (error) throw new Error(error.message);
 
-      const { data: publicUrlData } = supabase.storage.from('profile-photos').getPublicUrl(`public/${file.name}`);
+      const { data: publicUrlData } = supabase.storage.from('profile-photos').getPublicUrl(`public/${fileName}`);
       setFormData(prev => ({ ...prev, profile_photo: publicUrlData.publicUrl }));
-    } catch (err) {
+    } catch (err: any) {
+      console.error('Photo upload error:', err);
       // Fallback
       const initials = formData.name ? formData.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase() : 'KYC';
       const mockSvgPhoto = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" fill="%23065f46"/><circle cx="64" cy="48" r="28" fill="%23a7f3d0"/><path d="M24 104c0-22 18-40 40-40s40 18 40 40z" fill="%2334d399"/><text x="64" y="56" font-family="sans-serif" font-size="20" font-weight="bold" fill="%23064e3b" text-anchor="middle">${initials}</text></svg>`;
@@ -464,6 +477,20 @@ export default function KycModule() {
 
   // Storage upload action
   const handleSimulatedUpload = async (docType: 'aadhaar' | 'pan') => {
+    // Dynamic file picker
+    const file = await new Promise<File | null>((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'application/pdf,image/*';
+      input.onchange = (e: any) => {
+        const selected = e.target.files?.[0] || null;
+        resolve(selected);
+      };
+      input.click();
+    });
+
+    if (!file) return;
+
     const supabase = createBrowserSupabaseClient();
     if (docType === 'aadhaar') {
       setIsUploadingAadhaar(true);
@@ -486,17 +513,14 @@ export default function KycModule() {
         return;
       }
 
-      // Simulated mock file creation for demo purposes, but actual storage bucket upload
-      const blob = new Blob(['Mock document content for demo'], { type: 'application/pdf' });
-      const file = new File([blob], `${docType}_upload_${Date.now()}.pdf`, { type: 'application/pdf' });
-      
+      const fileName = `${docType}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
       const { data, error } = await supabase.storage
         .from('kyc-docs')
-        .upload(`public/${file.name}`, file, { upsert: true });
+        .upload(`public/${fileName}`, file, { upsert: true });
         
       if (error) throw new Error(error.message);
 
-      const { data: publicUrlData } = supabase.storage.from('kyc-docs').getPublicUrl(`public/${file.name}`);
+      const { data: publicUrlData } = supabase.storage.from('kyc-docs').getPublicUrl(`public/${fileName}`);
 
       if (docType === 'aadhaar') {
         setFormData(prev => ({ ...prev, aadhaar_file: publicUrlData.publicUrl }));
