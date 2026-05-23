@@ -64,6 +64,9 @@ export default function KycModule() {
   const [capturingPhoto, setCapturingPhoto] = useState(false);
   const [cameraCountdown, setCameraCountdown] = useState(3);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
 
   // OTP Verification States
   const [smsSending, setSmsSending] = useState(false);
@@ -144,38 +147,78 @@ export default function KycModule() {
     }
   };
 
-  // Trigger Mock Camera Snap countdown
+  // Webcam Camera Snap Implementation
   const handleCameraSnapSimulated = async () => {
-    setCapturingPhoto(true);
-    setCameraCountdown(3);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 300, height: 300, facingMode: 'user' }
+      });
+      setCameraStream(stream);
+      setIsCameraActive(true);
+      
+      // Let stream bind to element in render cycle
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch (err: any) {
+      console.error("Failed to open webcam:", err);
+      setFeedbackMsg(`Webcam error: ${err.message || 'Camera permission denied.'}`);
+    }
+  };
+
+  const captureWebcamPhoto = async () => {
+    if (!videoRef.current || !cameraStream) return;
     
-    setTimeout(() => setCameraCountdown(2), 400);
-    setTimeout(() => setCameraCountdown(1), 800);
-    
-    setTimeout(async () => {
-      try {
-        const supabase = createBrowserSupabaseClient();
-        if (!supabase) throw new Error('Supabase not configured');
-  
-        const blob = new Blob(['Mock image snap content'], { type: 'image/png' });
-        const file = new File([blob], `photo_snap_${Date.now()}.png`, { type: 'image/png' });
-        
-        const { data, error } = await supabase.storage
-          .from('profile-photos')
-          .upload(`public/${file.name}`, file, { upsert: true });
-          
-        if (error) throw new Error(error.message);
-  
-        const { data: publicUrlData } = supabase.storage.from('profile-photos').getPublicUrl(`public/${file.name}`);
-        setFormData(prev => ({ ...prev, profile_photo: publicUrlData.publicUrl }));
-      } catch (err) {
-        const initials = formData.name ? formData.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase() : 'SNAP';
-        const mockSvgSnap = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" fill="%233730a3"/><circle cx="64" cy="48" r="28" fill="%23c7d2fe"/><path d="M24 104c0-22 18-40 40-40s40 18 40 40z" fill="%23818cf8"/><text x="64" y="56" font-family="sans-serif" font-size="20" font-weight="bold" fill="%231e1b4b" text-anchor="middle">${initials}</text></svg>`;
-        setFormData(prev => ({ ...prev, profile_photo: mockSvgSnap }));
-      } finally {
-        setCapturingPhoto(false);
+    setUploadingPhoto(true);
+    setIsCameraActive(false);
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth || 300;
+      canvas.height = videoRef.current.videoHeight || 300;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // Mirror the canvas image to match webcam orientation
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
       }
-    }, 1200);
+
+      // Stop camera tracks immediately
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+      if (!blob) throw new Error("Failed to capture image from webcam canvas.");
+
+      const file = new File([blob], `camera_snap_${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const supabase = createBrowserSupabaseClient();
+      
+      if (!supabase) {
+        // Fallback mock SVG
+        const initials = formData.name ? formData.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase() : 'KYC';
+        const mockSvgPhoto = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" fill="%23065f46"/><circle cx="64" cy="48" r="28" fill="%23a7f3d0"/><path d="M24 104c0-22 18-40 40-40s40 18 40 40z" fill="%2334d399"/><text x="64" y="56" font-family="sans-serif" font-size="20" font-weight="bold" fill="%23064e3b" text-anchor="middle">${initials}</text></svg>`;
+        setFormData(prev => ({ ...prev, profile_photo: mockSvgPhoto }));
+        return;
+      }
+
+      const fileName = `camera_${Date.now()}.jpg`;
+      const { data, error } = await supabase.storage
+        .from('profile-photos')
+        .upload(`public/${fileName}`, file, { upsert: true });
+
+      if (error) throw new Error(error.message);
+
+      const { data: publicUrlData } = supabase.storage.from('profile-photos').getPublicUrl(`public/${fileName}`);
+      setFormData(prev => ({ ...prev, profile_photo: publicUrlData.publicUrl }));
+    } catch (err: any) {
+      console.error("Camera capture error:", err);
+      setFeedbackMsg(`Capture error: ${err.message}`);
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   // Trigger Send SMS OTP
@@ -788,7 +831,14 @@ export default function KycModule() {
                 <div className="flex flex-col sm:flex-row gap-6 items-center p-4 bg-zinc-900/40 border border-zinc-900 rounded-2xl">
                   {/* Photo Container */}
                   <div className="w-28 h-28 rounded-2xl bg-zinc-950 border border-zinc-800 flex flex-col items-center justify-center relative overflow-hidden select-none shrink-0 shadow-[0_0_15px_rgba(16,185,129,0.05)]">
-                    {capturingPhoto ? (
+                    {isCameraActive ? (
+                      <video 
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover transform -scale-x-100"
+                      />
+                    ) : capturingPhoto ? (
                       <div className="flex flex-col items-center gap-1.5 text-center px-2">
                         <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
                         <span className="text-[10px] text-zinc-400 font-extrabold animate-pulse">Capturing ({cameraCountdown}s)</span>
@@ -822,22 +872,33 @@ export default function KycModule() {
                       <button
                         type="button"
                         onClick={handlePhotoUploadSimulated}
-                        disabled={capturingPhoto || uploadingPhoto}
+                        disabled={isCameraActive || capturingPhoto || uploadingPhoto}
                         className="bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 border border-zinc-800 text-zinc-300 font-bold py-2 px-3.5 rounded-lg text-[10px] uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
                       >
                         <Image className="h-3.5 w-3.5" />
                         Upload Photo
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={handleCameraSnapSimulated}
-                        disabled={capturingPhoto || uploadingPhoto}
-                        className="bg-purple-950/20 hover:bg-purple-900/20 disabled:opacity-50 border border-purple-500/20 text-purple-400 font-bold py-2 px-3.5 rounded-lg text-[10px] uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
-                      >
-                        <Camera className="h-3.5 w-3.5 animate-pulse" />
-                        Trigger Camera Mockup
-                      </button>
+                      {isCameraActive ? (
+                        <button
+                          type="button"
+                          onClick={captureWebcamPhoto}
+                          className="bg-emerald-900 hover:bg-emerald-800 border border-emerald-500 text-emerald-400 font-bold py-2 px-3.5 rounded-lg text-[10px] uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <Camera className="h-3.5 w-3.5" />
+                          Take Snapshot
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleCameraSnapSimulated}
+                          disabled={capturingPhoto || uploadingPhoto}
+                          className="bg-purple-950/20 hover:bg-purple-900/20 disabled:opacity-50 border border-purple-500/20 text-purple-400 font-bold py-2 px-3.5 rounded-lg text-[10px] uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <Camera className="h-3.5 w-3.5 animate-pulse" />
+                          Trigger Camera
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
