@@ -496,15 +496,32 @@ export const db = {
   async submitRepayment(loanId: string, amount: number): Promise<GoldLoan> {
     const activeUser = await this.getActiveUser();
 
-    // Fetch and update Local Storage record
+    let loan: GoldLoan | null = null;
+
+    if (this.isSupabaseEnabled() && supabase) {
+      const { data, error } = await supabase
+        .from('gold_loans')
+        .select('*')
+        .eq('id', loanId)
+        .single();
+      if (!error && data) {
+        loan = data as GoldLoan;
+      }
+    }
+
     const list = getLocalData<GoldLoan[]>(STORAGE_KEYS.GOLD_LOANS, MOCK_GOLD_LOANS);
     const loanIndex = list.findIndex((l) => l.id === loanId);
 
-    if (loanIndex === -1) {
+    if (!loan) {
+      if (loanIndex !== -1) {
+        loan = list[loanIndex];
+      }
+    }
+
+    if (!loan) {
       throw new Error('Gold loan record not found.');
     }
 
-    const loan = list[loanIndex];
     const prevPaid = loan.paid_amount !== undefined ? loan.paid_amount : 0;
     const liability = loan.total_payback_amount || loan.loan_amount;
     const newPaid = Math.min(liability, prevPaid + amount);
@@ -518,8 +535,10 @@ export const db = {
       paid_percentage: percentage,
     };
 
-    list[loanIndex] = updatedLoan;
-    setLocalData(STORAGE_KEYS.GOLD_LOANS, list);
+    if (loanIndex !== -1) {
+      list[loanIndex] = updatedLoan;
+      setLocalData(STORAGE_KEYS.GOLD_LOANS, list);
+    }
 
     // If Supabase live connection is active, push updates there
     if (this.isSupabaseEnabled() && supabase) {
@@ -531,7 +550,10 @@ export const db = {
           paid_percentage: percentage
         })
         .eq('id', loanId);
-      if (error) console.error('Supabase repayment update failed:', error);
+      if (error) {
+        console.error('Supabase repayment update failed:', error);
+        throw new Error(error.message);
+      }
     }
 
     // Load customer name for logging
