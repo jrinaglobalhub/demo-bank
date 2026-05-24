@@ -528,11 +528,16 @@ export const db = {
     const remaining = Math.max(0, liability - newPaid);
     const percentage = Math.round((newPaid / liability) * 100);
 
+    // If payment recorded, reset due date to next month's 28th
+    const now = new Date();
+    const nextMaturity = new Date(now.getFullYear(), now.getMonth() + 1, 28);
+
     const updatedLoan: GoldLoan = {
       ...loan,
       paid_amount: newPaid,
       remaining_balance: remaining,
       paid_percentage: percentage,
+      maturity_date: nextMaturity.toISOString(),
     };
 
     if (loanIndex !== -1) {
@@ -547,7 +552,8 @@ export const db = {
         .update({
           paid_amount: newPaid,
           remaining_balance: remaining,
-          paid_percentage: percentage
+          paid_percentage: percentage,
+          maturity_date: nextMaturity.toISOString()
         })
         .eq('id', loanId);
       if (error) {
