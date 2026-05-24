@@ -505,9 +505,10 @@ export const db = {
 
     const loan = list[loanIndex];
     const prevPaid = loan.paid_amount !== undefined ? loan.paid_amount : 0;
-    const newPaid = Math.min(loan.loan_amount, prevPaid + amount);
-    const remaining = Math.max(0, loan.loan_amount - newPaid);
-    const percentage = Math.round((newPaid / loan.loan_amount) * 100);
+    const liability = loan.total_payback_amount || loan.loan_amount;
+    const newPaid = Math.min(liability, prevPaid + amount);
+    const remaining = Math.max(0, liability - newPaid);
+    const percentage = Math.round((newPaid / liability) * 100);
 
     const updatedLoan: GoldLoan = {
       ...loan,
@@ -573,10 +574,10 @@ export const db = {
       const list = getLocalData<GoldLoan[]>(STORAGE_KEYS.GOLD_LOANS, []).map((l) => {
         if (l.id === id) {
           const updated = { ...l, ...updates };
-          const principal = updated.loan_amount;
+          const liability = updated.total_payback_amount || updated.loan_amount;
           const paid = updated.paid_amount || 0;
-          updated.remaining_balance = Math.max(0, principal - paid);
-          updated.paid_percentage = Math.round((paid / principal) * 100);
+          updated.remaining_balance = Math.max(0, liability - paid);
+          updated.paid_percentage = Math.round((paid / liability) * 100);
           return updated;
         }
         return l;

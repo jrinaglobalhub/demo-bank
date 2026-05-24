@@ -881,8 +881,9 @@ export default function GoldLoanModule() {
                 .filter((l) => l.status !== 'PENDING_APPROVAL')
                 .map((loan) => {
                 const paid = loan.paid_amount || 0;
-                const remaining = loan.remaining_balance !== undefined ? loan.remaining_balance : loan.loan_amount;
-                const pct = loan.paid_percentage || 0;
+                const liability = loan.total_payback_amount || loan.loan_amount;
+                const remaining = Math.max(0, liability - paid);
+                const pct = Math.min(100, Math.round((paid / liability) * 100));
 
                 return (
                   <tr 
@@ -913,8 +914,11 @@ export default function GoldLoanModule() {
                         <p className="text-zinc-500 font-mono mt-0.5">{loan.packet_number}</p>
                       </div>
                     </td>
-                    <td className="px-4 py-4 font-extrabold text-zinc-200">
-                      {formatRupee(loan.loan_amount)}
+                    <td className="px-4 py-4">
+                      <div className="flex flex-col text-xs">
+                        <span className="font-bold text-zinc-300">P: {formatRupee(loan.loan_amount)}</span>
+                        <span className="text-[10px] text-zinc-500 font-medium">Payback: {formatRupee(liability)}</span>
+                      </div>
                     </td>
                     <td className="px-4 py-4 font-bold text-emerald-400">
                       {formatRupee(paid)}
