@@ -1302,19 +1302,13 @@ export default function KycModule() {
                       {submitting ? 'Registering customer...' : 'Complete Inward Record'}
                     </button>
                   ) : (
-                    <div className="flex flex-col items-end gap-1.5">
-                      <button
-                        type="button"
-                        disabled
-                        className="bg-zinc-850 border border-zinc-800 text-zinc-500 font-bold py-3.5 px-6 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-not-allowed select-none"
-                      >
-                        <Lock className="h-4 w-4 text-zinc-500" />
-                        <span>Complete Inward Record</span>
-                      </button>
-                      <span className="text-[10px] text-zinc-500 font-semibold flex items-center gap-1">
-                        <Lock className="h-3 w-3" /> Privileged action. Access restricted to Manager role.
-                      </span>
-                    </div>
+                    <button
+                      type="submit"
+                      disabled={submitting || isUploadingAadhaar || isUploadingPan || (!smsVerified && !emailVerified)}
+                      className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 disabled:shadow-none text-white font-bold py-3.5 px-6 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-[0_4px_12px_rgba(99,102,241,0.2)] hover:shadow-indigo-500/30 cursor-pointer active:scale-95 select-none"
+                    >
+                      {submitting ? 'Submitting to Manager...' : 'Submit for Manager Approval'}
+                    </button>
                   )}
                 </div>
               </div>
@@ -1746,7 +1740,19 @@ export default function KycModule() {
               </div>
 
               {/* Close footer button */}
-              <div className="flex justify-end border-t border-zinc-900 pt-4">
+              <div className="flex justify-end items-center gap-3 border-t border-zinc-900 pt-4">
+                {selectedViewCustomer.status === 'PENDING_APPROVAL' && currentProfile?.role === 'manager' && (
+                  <button
+                    onClick={async () => {
+                      await handleApproveCustomer(selectedViewCustomer.id);
+                      setSelectedViewCustomer(null);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-6 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer active:scale-95 flex items-center gap-1.5 shadow-[0_4px_12px_rgba(16,185,129,0.2)] hover:shadow-emerald-500/30"
+                  >
+                    <UserCheck className="h-4 w-4" />
+                    Approve KYC
+                  </button>
+                )}
                 <button
                   onClick={() => setSelectedViewCustomer(null)}
                   className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold py-2.5 px-6 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer active:scale-95"
