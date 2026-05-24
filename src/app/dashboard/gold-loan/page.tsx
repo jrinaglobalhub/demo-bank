@@ -262,6 +262,7 @@ export default function GoldLoanModule() {
       
       const mDate = new Date();
       mDate.setMonth(mDate.getMonth() + (parseInt(paybackMonths) || 6));
+      mDate.setDate(28);
       const initialStatus = activeProfile?.role === 'manager' ? 'ACTIVE' : 'PENDING_APPROVAL';
 
       if (supabase) {
@@ -348,7 +349,8 @@ export default function GoldLoanModule() {
       }
       
       const prevPaid = selectedRepayLoan.paid_amount || 0;
-      const remainingLimit = selectedRepayLoan.loan_amount - prevPaid;
+      const liability = selectedRepayLoan.total_payback_amount || selectedRepayLoan.loan_amount;
+      const remainingLimit = liability - prevPaid;
       if (amount > remainingLimit) {
         throw new Error(`Repayment exceeds the remaining balance of ${formatRupee(remainingLimit)}.`);
       }
@@ -992,8 +994,9 @@ export default function GoldLoanModule() {
       {/* REPAYMENT OVERLAY DIALOG MODAL */}
       {selectedRepayLoan && (() => {
         const paid = selectedRepayLoan.paid_amount || 0;
-        const remaining = selectedRepayLoan.remaining_balance !== undefined ? selectedRepayLoan.remaining_balance : selectedRepayLoan.loan_amount;
-        const pct = selectedRepayLoan.paid_percentage || 0;
+        const liability = selectedRepayLoan.total_payback_amount || selectedRepayLoan.loan_amount;
+        const remaining = Math.max(0, liability - paid);
+        const pct = Math.min(100, Math.round((paid / liability) * 100));
 
         return (
           <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -1041,15 +1044,29 @@ export default function GoldLoanModule() {
                     <p className="font-extrabold text-zinc-300">{formatRupee(selectedRepayLoan.loan_amount)}</p>
                   </div>
                   <div>
-                    <span className="block text-[9px] font-extrabold uppercase tracking-widest text-emerald-400">Total Settled</span>
-                    <p className="font-extrabold text-emerald-400">{formatRupee(paid)} ({pct}%)</p>
+                    <span className="block text-[9px] font-extrabold uppercase tracking-widest text-zinc-500">Total Payback Liability</span>
+                    <p className="font-extrabold text-zinc-300">{formatRupee(liability)}</p>
                   </div>
                 </div>
 
-                <div className="border-t border-zinc-900/60 pt-3">
-                  <span className="block text-[9px] font-extrabold uppercase tracking-widest text-amber-400">Outstanding Liability Balance</span>
-                  <p className="text-xl font-black text-amber-400 mt-0.5">{formatRupee(remaining)}</p>
+                <div className="grid grid-cols-2 gap-3 text-xs border-t border-zinc-900/60 pt-3">
+                  <div>
+                    <span className="block text-[9px] font-extrabold uppercase tracking-widest text-emerald-400">Total Settled</span>
+                    <p className="font-extrabold text-emerald-400">{formatRupee(paid)} ({pct}%)</p>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] font-extrabold uppercase tracking-widest text-amber-400">Outstanding Balance</span>
+                    <p className="font-black text-amber-400">{formatRupee(remaining)}</p>
+                  </div>
                 </div>
+              </div>
+
+              {/* Due Date Notice */}
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2">
+                <span className="text-amber-400 font-bold text-xs">⚠️</span>
+                <p className="text-[10px] text-zinc-400 font-medium leading-relaxed">
+                  <span className="font-extrabold text-amber-400">Payment Schedule Warning:</span> The last date to pay the instalment of any month is the <span className="font-extrabold text-zinc-200">28th</span>. Late payments may result in interest penalties and asset auction warnings.
+                </p>
               </div>
 
               {/* Repayment Form */}

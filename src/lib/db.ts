@@ -448,6 +448,7 @@ export const db = {
     // Default maturity date to exactly 6 months from today
     const mDate = new Date();
     mDate.setMonth(mDate.getMonth() + 6);
+    mDate.setDate(28);
 
     const newLoan: GoldLoan = {
       ...loanData,
