@@ -40,6 +40,9 @@ export default function GoldLoanModule() {
   const [overridePrincipal, setOverridePrincipal] = useState('');
   const [overridePaid, setOverridePaid] = useState('');
   const [overrideLocker, setOverrideLocker] = useState('');
+  const [overrideInterestRate, setOverrideInterestRate] = useState('12');
+  const [overridePaybackMonths, setOverridePaybackMonths] = useState('6');
+  const [overrideInterestMethod, setOverrideInterestMethod] = useState<'flat' | 'reducing'>('reducing');
 
   const handleDeleteLoan = async () => {
     if (!deleteTargetLoan) return;
@@ -67,10 +70,31 @@ export default function GoldLoanModule() {
     try {
       const principal = parseFloat(overridePrincipal) || 0;
       const paid = parseFloat(overridePaid) || 0;
+      const ratePct = parseFloat(overrideInterestRate) || 0;
+      const months = parseFloat(overridePaybackMonths) || 0;
+      
+      let totalPayback = 0;
+      if (overrideInterestMethod === 'reducing') {
+        const monthlyRate = (ratePct / 100) / 12;
+        if (monthlyRate === 0) {
+          totalPayback = Math.round(principal);
+        } else {
+          const emi = (principal * monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1);
+          totalPayback = Math.round(emi * months);
+        }
+      } else {
+        const interest = principal * (ratePct / 100) * (months / 12);
+        totalPayback = Math.round(principal + interest);
+      }
+
       await db.updateGoldLoanDetails(selectedEditLoan.id, {
         loan_amount: principal,
         paid_amount: paid,
-        locker_shelf_id: overrideLocker
+        locker_shelf_id: overrideLocker,
+        interest_rate: ratePct,
+        payback_months: Math.round(months),
+        interest_method: overrideInterestMethod,
+        total_payback_amount: totalPayback
       });
       const lList = await db.getGoldLoans();
       setLoans(lList);
@@ -78,7 +102,7 @@ export default function GoldLoanModule() {
       setSelectedEditLoan(null);
       await db.createAuditLog(
         'Gold Loan Overridden',
-        `Manager updated gold loan parameters for ${selectedEditLoan.customer_name}. Principal: ₹${principal}, Paid: ₹${paid}, Locker: ${overrideLocker}`,
+        `Manager updated gold loan parameters for ${selectedEditLoan.customer_name}. Principal: ₹${principal}, Paid: ₹${paid}, Locker: ${overrideLocker}, Rate: ${ratePct}%, Term: ${months}m, Scheme: ${overrideInterestMethod}`,
         'GOLD_LOAN'
       );
     } catch (err) {
@@ -924,6 +948,9 @@ export default function GoldLoanModule() {
                               setOverridePrincipal(loan.loan_amount.toString());
                               setOverridePaid(loan.paid_amount?.toString() || '0');
                               setOverrideLocker(loan.locker_shelf_id);
+                              setOverrideInterestRate(loan.interest_rate?.toString() || '12');
+                              setOverridePaybackMonths(loan.payback_months?.toString() || '6');
+                              setOverrideInterestMethod(loan.interest_method || 'reducing');
                               setShowEditLoanModal(true);
                             }}
                             className="p-1.5 bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/30 hover:border-indigo-500/50 text-indigo-400 rounded-lg transition-all cursor-pointer flex items-center justify-center shrink-0"
@@ -1359,6 +1386,44 @@ export default function GoldLoanModule() {
                   type="text"
                   value={overrideLocker}
                   onChange={(e) => setOverrideLocker(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                  required
+                />
+              </div>
+
+              {/* Interest Calculation Method */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">Interest Scheme</label>
+                <select
+                  value={overrideInterestMethod}
+                  onChange={(e: any) => setOverrideInterestMethod(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                >
+                  <option value="reducing">EMI Scheme (Reducing Balance)</option>
+                  <option value="flat">Flat Interest Method</option>
+                </select>
+              </div>
+
+              {/* Interest Rate */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">Interest Rate (% Per Annum)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={overrideInterestRate}
+                  onChange={(e) => setOverrideInterestRate(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                  required
+                />
+              </div>
+
+              {/* Payback Period */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">Payback Period (Months)</label>
+                <input
+                  type="number"
+                  value={overridePaybackMonths}
+                  onChange={(e) => setOverridePaybackMonths(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
                   required
                 />
