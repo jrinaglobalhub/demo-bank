@@ -37,6 +37,7 @@ export default function StaffManagementDesk() {
   const [onboardForm, setOnboardForm] = useState({
     name: '',
     username: '',
+    password: '',
     role: 'clerk' as Profile['role'],
     counter_number: '',
   });
@@ -81,9 +82,9 @@ export default function StaffManagementDesk() {
     setFeedbackMsg('');
     setIsError(false);
 
-    if (!onboardForm.name || !onboardForm.username || !onboardForm.counter_number) {
+    if (!onboardForm.name || !onboardForm.username || !onboardForm.password || !onboardForm.counter_number) {
       setIsError(true);
-      setFeedbackMsg('Error: Please populate all onboarding parameters.');
+      setFeedbackMsg('Error: Please populate all onboarding parameters including a password.');
       return;
     }
 
@@ -93,17 +94,18 @@ export default function StaffManagementDesk() {
         username: onboardForm.username,
         role: onboardForm.role,
         counter_number: onboardForm.counter_number,
-      });
+      }, onboardForm.password);
 
       // Clear Form & Close
       setOnboardForm({
         name: '',
         username: '',
+        password: '',
         role: 'clerk',
         counter_number: '',
       });
       setIsOnboardingOpen(false);
-      setFeedbackMsg('Success! Staff member onboarded to active registry.');
+      setFeedbackMsg('Success! Staff member onboarded with secure auth login.');
       loadData();
     } catch (err: any) {
       setIsError(true);
@@ -394,6 +396,21 @@ export default function StaffManagementDesk() {
                   onChange={(e) => setOnboardForm(prev => ({ ...prev, username: e.target.value }))}
                   required
                   className="w-full bg-zinc-950 border border-zinc-900 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-zinc-200 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Sign-in Password
+                </label>
+                <input
+                  type="password"
+                  placeholder="Set account password (min. 6 chars)"
+                  value={onboardForm.password}
+                  onChange={(e) => setOnboardForm(prev => ({ ...prev, password: e.target.value }))}
+                  required
+                  minLength={6}
+                  className="w-full bg-zinc-950 border border-zinc-900 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-zinc-200"
                 />
               </div>
 

@@ -1,6 +1,7 @@
 export interface Profile {
   id: string;
   name: string;
+  email?: string;
   role: 'manager' | 'clerk' | 'teller' | 'loan_officer' | 'auditor';
   created_at: string;
   username?: string;

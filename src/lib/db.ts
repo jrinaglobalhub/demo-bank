@@ -735,22 +735,86 @@ export const db = {
   },
 
   // --- Staff Management CRUD ---
-  async createStaffProfile(staffData: Omit<Profile, 'id' | 'created_at'>): Promise<Profile> {
+  async createStaffProfile(staffData: Omit<Profile, 'id' | 'created_at'>, password?: string): Promise<Profile> {
     const activeUser = await this.getActiveUser();
-    const newStaff: Profile = {
-      ...staffData,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-      status: 'OFFLINE', // Default status for new staff
-    };
+    let targetId = crypto.randomUUID();
+    const finalEmail = staffData.email || staffData.username || '';
 
     if (this.isSupabaseEnabled() && supabase) {
-      await supabase.from('profiles').insert([newStaff]);
-    } else {
-      const list = getLocalData<Profile[]>(STORAGE_KEYS.PROFILES, MOCK_PROFILES);
-      list.push(newStaff);
-      setLocalData(STORAGE_KEYS.PROFILES, list);
+      if (password && finalEmail) {
+        try {
+          const { createClient } = await import('@supabase/supabase-js');
+          const tempClient = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+              auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+                detectSessionInUrl: false
+              }
+            }
+          );
+          
+          const { data: signUpData, error: signUpErr } = await tempClient.auth.signUp({
+            email: finalEmail,
+            password: password,
+            options: {
+              data: {
+                name: staffData.name,
+                role: staffData.role,
+                counter_number: staffData.counter_number
+              }
+            }
+          });
+          
+          if (signUpErr) {
+            throw new Error(`Auth sign-up failed: ${signUpErr.message}`);
+          }
+          
+          if (signUpData?.user) {
+            targetId = signUpData.user.id;
+          }
+        } catch (err: any) {
+          console.error("Supabase Auth sign-up error:", err);
+          throw new Error(`Failed to create login credentials: ${err.message}`);
+        }
+      }
+
+      const newStaff: Profile = {
+        ...staffData,
+        id: targetId,
+        email: finalEmail,
+        created_at: new Date().toISOString(),
+        status: 'OFFLINE',
+      };
+
+      const { error: insertErr } = await supabase.from('profiles').insert([newStaff]);
+      if (insertErr) {
+        console.error('Supabase profile insertion failed:', insertErr);
+        throw new Error(`Failed to create staff profile: ${insertErr.message}`);
+      }
+
+      await this.createAuditLog(
+        'Staff Onboarded',
+        `Manager ${activeUser.name} onboarded new staff member ${newStaff.name} as ${newStaff.role.toUpperCase()} at ${newStaff.counter_number || 'unassigned desk'}.`,
+        'STAFF'
+      );
+
+      return newStaff;
     }
+
+    const newStaff: Profile = {
+      ...staffData,
+      id: targetId,
+      email: finalEmail,
+      created_at: new Date().toISOString(),
+      status: 'OFFLINE',
+    };
+
+    const list = getLocalData<Profile[]>(STORAGE_KEYS.PROFILES, MOCK_PROFILES);
+    list.push(newStaff);
+    setLocalData(STORAGE_KEYS.PROFILES, list);
 
     await this.createAuditLog(
       'Staff Onboarded',
