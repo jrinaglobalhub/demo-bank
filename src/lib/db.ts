@@ -605,14 +605,17 @@ export const db = {
     }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   },
 
-  async registerBiometric(credentialName: string): Promise<BiometricCredential> {
+  async registerBiometric(credentialName: string, actualCredId?: string, actualPubKey?: string): Promise<BiometricCredential> {
     const activeUser = await this.getActiveUser();
+    const credId = actualCredId || `cred_simulated_${Date.now()}`;
+    const pubKey = actualPubKey || `mock_public_key_simulated_${Math.random().toString(36).substring(2)}`;
+    
     const newCred: BiometricCredential = {
       id: crypto.randomUUID(),
       profile_id: activeUser.id,
       credential_name: credentialName,
-      credential_id: `cred_simulated_${Date.now()}`,
-      public_key: `mock_public_key_simulated_${Math.random().toString(36).substring(2)}`,
+      credential_id: credId,
+      public_key: pubKey,
       status: 'PENDING_APPROVAL',
       created_at: new Date().toISOString(),
     };
@@ -623,8 +626,8 @@ export const db = {
         .insert([{
           profile_id: activeUser.id,
           credential_name: credentialName,
-          credential_id: newCred.credential_id,
-          public_key: newCred.public_key,
+          credential_id: credId,
+          public_key: pubKey,
           status: 'PENDING_APPROVAL'
         }])
         .select()

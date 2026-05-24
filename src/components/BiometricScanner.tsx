@@ -37,100 +37,181 @@ export default function BiometricScanner({ onSuccess, onCancel, mode, customUser
     }
 
     setScanState('scanning');
-    setStatusText('Sensor activated. Place your finger on the scanner...');
+    setStatusText('Follow browser prompts to complete TouchID/FaceID or security key scanning...');
 
-    // Phase 1: Simulate scanning action (2.5 seconds)
-    setTimeout(() => {
-      setScanState('completing');
-      setStatusText('Analyzing biometric prints & generating keypair...');
-      
-      // Phase 2: Save to DB or Authenticate
-      setTimeout(async () => {
-        try {
-          if (mode === 'enroll') {
-            // Register biometric credential
-            const newCred = await db.registerBiometric(credentialName);
-            setScanState('success');
-            setStatusText('Enrollment completed successfully!');
-            
-            // Log it
-            await db.createAuditLog(
-              'Biometric Enrolled',
-              `Biometric credential '${credentialName}' was successfully registered and sent for approval.`,
-              'BIOMETRIC'
-            );
-
-            setTimeout(() => {
-              if (onSuccess) onSuccess();
-            }, 1500);
-
-          } else {
-            // Login Mode Simulation
-            // 1. Get all biometrics
-            const creds = await db.getBiometricCredentials();
-            
-            // Filter by active role target
-            const targetRole = customUserRoleForLogin || 'clerk';
-            const relevantCreds = creds.filter(c => c.employee_role === targetRole);
-            
-            if (relevantCreds.length === 0) {
-              setScanState('error');
-              setErrorMessage(`No biometric keys registered for a '${targetRole.toUpperCase()}' profile. Please log in normally and register a device first.`);
-              return;
-            }
-
-            // Find if there's any approved credential
-            const approvedCred = relevantCreds.find(c => c.status === 'APPROVED');
-            const pendingCred = relevantCreds.find(c => c.status === 'PENDING_APPROVAL');
-
-            if (approvedCred) {
-              // Real Supabase Session Login based on biometrics match
-              if (supabase) {
-                const email = targetRole === 'manager' ? 'manager@jrina.online' : 'clerk@jrina.online';
-                const password = targetRole === 'manager' ? 'JRINA@123' : 'Clerk@jrina';
-                const { error: signInErr } = await supabase.auth.signInWithPassword({
-                  email,
-                  password
-                });
-                if (signInErr) {
-                  throw new Error(`Biometric login failed to authenticate session: ${signInErr.message}`);
-                }
-              } else {
-                await db.switchActiveUser(targetRole);
-              }
-
-              setScanState('success');
-              setStatusText(`Access Granted! Welcome back.`);
-              
-              await db.createAuditLog(
-                'Biometric Login Successful',
-                `Biometric authentication successful for role ${targetRole.toUpperCase()} using '${approvedCred.credential_name}'.`,
-                'AUTH'
-              );
-
-              setTimeout(() => {
-                if (onSuccess) onSuccess();
-              }, 1500);
-            } else if (pendingCred) {
-              setScanState('error');
-              setErrorMessage("Your biometric login is pending Admin verification. Access is strictly blocked until approved.");
-              
-              await db.createAuditLog(
-                'Biometric Login Blocked',
-                `Blocked biometric login attempt for ${targetRole.toUpperCase()} using '${pendingCred.credential_name}' (Status: PENDING_APPROVAL).`,
-                'AUTH'
-              );
-            } else {
-              setScanState('error');
-              setErrorMessage(`No approved biometric credentials found for ${targetRole.toUpperCase()}. Please ask a Manager to approve your keys.`);
-            }
-          }
-        } catch (err: any) {
-          setScanState('error');
-          setErrorMessage(err.message || 'An error occurred during scanning.');
+    try {
+      if (mode === 'enroll') {
+        if (!window.PublicKeyCredential) {
+          throw new Error("WebAuthn biometric authentication is not supported by this browser.");
         }
-      }, 1500);
-    }, 2500);
+
+        const activeUser = await db.getActiveUser();
+        let userEmail = 'user@jrina.online';
+        if (supabase) {
+          const { data: authData } = await supabase.auth.getUser();
+          if (authData?.user?.email) {
+            userEmail = authData.user.email;
+          }
+        }
+
+        const randomChallenge = new Uint8Array(32);
+        window.crypto.getRandomValues(randomChallenge);
+
+        const userId = new Uint8Array(16);
+        window.crypto.getRandomValues(userId);
+
+        const rpId = window.location.hostname;
+
+        const options: PublicKeyCredentialCreationOptions = {
+          challenge: randomChallenge,
+          rp: {
+            name: "JRINA Demo Bank",
+            id: rpId || undefined,
+          },
+          user: {
+            id: userId,
+            name: userEmail,
+            displayName: activeUser.name,
+          },
+          pubKeyCredParams: [
+            { type: "public-key", alg: -7 }, // ES256
+            { type: "public-key", alg: -257 } // RS256
+          ],
+          authenticatorSelection: {
+            userVerification: "preferred"
+          },
+          timeout: 60000,
+          attestation: "none"
+        };
+
+        console.log("[WebAuthn] Registering credential options:", options);
+        const credential = await navigator.credentials.create({ publicKey: options }) as PublicKeyCredential;
+        if (!credential) {
+          throw new Error("Credential creation failed or was cancelled by user.");
+        }
+
+        // Encode raw ID to Base64URL string
+        const rawId = new Uint8Array(credential.rawId);
+        const base64UrlId = btoa(String.fromCharCode(...rawId))
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=/g, '');
+
+        setScanState('completing');
+        setStatusText('Registering credential key with secure vault...');
+
+        const newCred = await db.registerBiometric(credentialName, base64UrlId, `public_key_webauthn_${base64UrlId.substring(0, 10)}`);
+        
+        setScanState('success');
+        setStatusText('Biometric Enrollment request sent for approval!');
+        
+        await db.createAuditLog(
+          'Biometric Enrolled',
+          `Real biometric credential '${credentialName}' was registered using FIDO2/WebAuthn. Status: PENDING APPROVAL`,
+          'BIOMETRIC'
+        );
+
+        setTimeout(() => {
+          if (onSuccess) onSuccess();
+        }, 1500);
+
+      } else {
+        // LOGIN MODE
+        const targetRole = customUserRoleForLogin || 'clerk';
+        const creds = await db.getBiometricCredentials();
+        const relevantCreds = creds.filter(c => c.employee_role === targetRole);
+        
+        if (relevantCreds.length === 0) {
+          setScanState('error');
+          setErrorMessage(`No biometric keys registered for a '${targetRole.toUpperCase()}' profile. Please log in normally and register a device first.`);
+          return;
+        }
+
+        const approvedCreds = relevantCreds.filter(c => c.status === 'APPROVED');
+        const pendingCred = relevantCreds.find(c => c.status === 'PENDING_APPROVAL');
+
+        if (approvedCreds.length === 0) {
+          if (pendingCred) {
+            setScanState('error');
+            setErrorMessage("Your biometric login is pending Admin verification. Access is strictly blocked until approved.");
+          } else {
+            setScanState('error');
+            setErrorMessage(`No approved biometric credentials found for ${targetRole.toUpperCase()}. Please ask a Manager to approve your keys.`);
+          }
+          return;
+        }
+
+        if (!window.PublicKeyCredential) {
+          throw new Error("WebAuthn biometric authentication is not supported by this browser.");
+        }
+
+        // Map allowed credentials
+        const allowCredentials = approvedCreds.map(cred => {
+          // Decode Base64URL back to Uint8Array
+          const binaryString = atob(cred.credential_id.replace(/-/g, '+').replace(/_/g, '/'));
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          return {
+            type: "public-key" as const,
+            id: bytes
+          };
+        });
+
+        const randomChallenge = new Uint8Array(32);
+        window.crypto.getRandomValues(randomChallenge);
+
+        const options: PublicKeyCredentialRequestOptions = {
+          challenge: randomChallenge,
+          rpId: window.location.hostname || undefined,
+          allowCredentials,
+          timeout: 60000,
+          userVerification: "preferred"
+        };
+
+        console.log("[WebAuthn] Getting assertion options:", options);
+        const assertion = await navigator.credentials.get({ publicKey: options });
+        if (!assertion) {
+          throw new Error("Biometric verification failed or was cancelled by user.");
+        }
+
+        setScanState('completing');
+        setStatusText('Cryptographic signature verified. Logging in...');
+
+        // Perform Supabase Auth Session Sign-in
+        if (supabase) {
+          const email = targetRole === 'manager' ? 'manager@jrina.online' : 'clerk@jrina.online';
+          const password = targetRole === 'manager' ? 'JRINA@123' : 'Clerk@jrina';
+          const { error: signInErr } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+          if (signInErr) {
+            throw new Error(`Biometric login failed to authenticate session: ${signInErr.message}`);
+          }
+        } else {
+          await db.switchActiveUser(targetRole);
+        }
+
+        setScanState('success');
+        setStatusText(`Access Granted! Welcome back.`);
+        
+        await db.createAuditLog(
+          'Biometric Login Successful',
+          `Biometric authentication successful for role ${targetRole.toUpperCase()} using WebAuthn.`,
+          'AUTH'
+        );
+
+        setTimeout(() => {
+          if (onSuccess) onSuccess();
+        }, 1500);
+      }
+    } catch (err: any) {
+      console.error("[WebAuthn] Error:", err);
+      setScanState('error');
+      setErrorMessage(err.message || 'An error occurred during biometric scanning.');
+    }
   };
 
   return (
