@@ -24,8 +24,8 @@ import { formatRupee } from '@/lib/utils';
 import { Customer } from '@/lib/mockData';
 import { createBrowserSupabaseClient } from '@/lib/supabase';
 
-// Available Indian Rupee denominations including the demo ₹5000 imaginary note
-const DENOMINATIONS = [5000, 2000, 500, 200, 100, 50, 20, 10];
+// Available Indian Rupee denominations
+const DENOMINATIONS = [500, 200, 100, 50, 20, 10];
 
 export default function CashDeskModule() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -37,7 +37,7 @@ export default function CashDeskModule() {
   
   // Deposit States
   const [depositCounts, setDepositCounts] = useState<Record<number, number>>({
-    5000: 0, 2000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0
+    500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0
   });
   const [loadingMachine, setLoadingMachine] = useState(false);
   const [depositSubmitting, setDepositSubmitting] = useState(false);
@@ -63,7 +63,7 @@ export default function CashDeskModule() {
   // Withdrawal States
   const [withdrawalAmount, setWithdrawalAmount] = useState('');
   const [withdrawalCounts, setWithdrawalCounts] = useState<Record<number, number>>({
-    5000: 0, 2000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0
+    500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0
   });
   const [withdrawalTotal, setWithdrawalTotal] = useState(0);
   const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false);
@@ -101,13 +101,13 @@ export default function CashDeskModule() {
   // Reset counts helper
   const resetDepositCounts = () => {
     setDepositCounts({
-      5000: 0, 2000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0
+      500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0
     });
   };
 
   const resetWithdrawalCounts = () => {
     setWithdrawalCounts({
-      5000: 0, 2000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0
+      500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0
     });
     setWithdrawalTotal(0);
     setWithdrawalAmount('');
@@ -191,7 +191,7 @@ export default function CashDeskModule() {
 
   const parseCountingMachineLine = (line: string) => {
     const cleanLine = line.trim();
-    const match = cleanLine.match(/(5000|2000|500|200|100|50|20|10)\s*[:x*=\s]\s*(\d+)/i);
+    const match = cleanLine.match(/(500|200|100|50|20|10)\s*[:x*=\s]\s*(\d+)/i);
     if (match) {
       const denom = Number(match[1]);
       const count = Number(match[2]);
@@ -276,9 +276,7 @@ export default function CashDeskModule() {
       setTimeout(() => {
         setIsScanningReceipt(false);
         setDepositCounts({
-          5000: 0,
-          2000: 5,   // ₹10,000
-          500: 25,   // ₹12,500
+          500: 25,   // ₹12,550
           200: 10,   // ₹2,000
           100: 50,   // ₹5,000
           50: 0,
@@ -286,7 +284,7 @@ export default function CashDeskModule() {
           10: 100    // ₹1,000
         });
         setFeedback({
-          message: 'OCR Success: Denominations extracted from paper slip image. Total verified: ₹30,500.',
+          message: 'OCR Success: Denominations extracted from paper slip image. Total verified: ₹20,500.',
           type: 'success'
         });
       }, 2500);
@@ -306,8 +304,6 @@ export default function CashDeskModule() {
     setTimeout(() => {
       // Seed high-fidelity, distinct mock note counts automatically
       setDepositCounts({
-        5000: 5,   // Imaginary Note: ₹25,000
-        2000: 10,  // Note: ₹20,000
         500: 50,   // Note: ₹25,000
         200: 30,   // Note: ₹6,000
         100: 100,  // Note: ₹10,000
@@ -895,15 +891,11 @@ export default function CashDeskModule() {
                         <tr key={denom} className="hover:bg-zinc-900/20 transition-colors">
                           <td className="px-4 py-3">
                             <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                              denom === 5000 
-                                ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' 
-                                : denom === 2000
-                                ? 'bg-pink-500/10 text-pink-400 border border-pink-500/20'
-                                : denom === 500
+                              denom === 500
                                 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                 : 'bg-zinc-900 text-zinc-400 border border-zinc-800'
                             }`}>
-                              ₹{denom} {denom === 5000 ? '(Imaginary)' : ''}
+                              ₹{denom}
                             </span>
                           </td>
                           <td className="px-4 py-2">
@@ -1029,15 +1021,11 @@ export default function CashDeskModule() {
                         <tr key={denom} className={`transition-colors ${count > 0 ? 'bg-indigo-950/10' : 'hover:bg-zinc-900/20'}`}>
                           <td className="px-4 py-3">
                             <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                              denom === 5000 
-                                ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' 
-                                : denom === 2000
-                                ? 'bg-pink-500/10 text-pink-400 border border-pink-500/20'
-                                : denom === 500
+                              denom === 500
                                 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                 : 'bg-zinc-900 text-zinc-400 border border-zinc-800'
                             }`}>
-                              ₹{denom} {denom === 5000 ? '(Imaginary)' : ''}
+                              ₹{denom}
                             </span>
                           </td>
                           <td className="px-4 py-3 font-mono font-bold text-zinc-200">
