@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Coins, Calculator, CheckCircle2, ShieldAlert, Sparkles, FolderLock, X, Lock, Pencil, Trash2 } from 'lucide-react';
+import { Coins, Calculator, CheckCircle2, ShieldAlert, Sparkles, FolderLock, X, Lock, Pencil, Trash2, Clock } from 'lucide-react';
 import { db } from '@/lib/db';
 import { createBrowserSupabaseClient } from '@/lib/supabase';
 import { formatRupee } from '@/lib/utils';
@@ -222,6 +222,7 @@ export default function GoldLoanModule() {
       
       const mDate = new Date();
       mDate.setMonth(mDate.getMonth() + (parseInt(paybackMonths) || 6));
+      const initialStatus = activeProfile?.role === 'manager' ? 'ACTIVE' : 'PENDING_APPROVAL';
 
       if (supabase) {
         const { error } = await supabase.from('gold_loans').insert([{
@@ -233,7 +234,7 @@ export default function GoldLoanModule() {
           loan_amount: loanAmount,
           locker_shelf_id: lockerId,
           packet_number: packetNumber,
-          status: 'ACTIVE',
+          status: initialStatus,
           maturity_date: mDate.toISOString(),
           interest_rate: parseFloat(interestRate) || 12,
           payback_months: parseInt(paybackMonths) || 6,
@@ -256,11 +257,16 @@ export default function GoldLoanModule() {
           packet_number: packetNumber,
           interest_rate: parseFloat(interestRate) || 12,
           payback_months: parseInt(paybackMonths) || 6,
-          total_payback_amount: totalPaybackAmount
+          total_payback_amount: totalPaybackAmount,
+          status: initialStatus
         });
       }
 
-      setFeedbackMsg(`Success! Gold Loan of ${formatRupee(loanAmount)} disbursed successfully.`);
+      setFeedbackMsg(
+        initialStatus === 'ACTIVE'
+          ? `Success! Gold Loan of ${formatRupee(loanAmount)} disbursed successfully.`
+          : `Success! Gold Loan request of ${formatRupee(loanAmount)} submitted for Manager approval.`
+      );
       
       // Reset inputs
       setSelectedCustomerId('');
@@ -560,19 +566,14 @@ export default function GoldLoanModule() {
                 <span>Authorize & Issue New Gold Loan</span>
               </button>
             ) : (
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  disabled
-                  className="w-full bg-zinc-850 border border-zinc-800 text-zinc-500 font-extrabold py-4 px-6 rounded-2xl text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-not-allowed select-none"
-                >
-                  <Lock className="h-4 w-4 text-zinc-500" />
-                  <span>Authorize & Issue New Gold Loan</span>
-                </button>
-                <p className="text-[11px] text-zinc-500 text-center font-semibold flex items-center justify-center gap-1">
-                  <Lock className="h-3 w-3" /> Privileged action. Access restricted to Manager role.
-                </p>
-              </div>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold py-4 px-6 rounded-2xl text-sm uppercase tracking-wider transition-all shadow-[0_4px_15px_rgba(99,102,241,0.25)] hover:shadow-indigo-500/35 cursor-pointer active:scale-95 flex items-center justify-center gap-2 select-none"
+              >
+                <Coins className="h-5 w-5" />
+                <span>Apply for Manager Approval</span>
+              </button>
             )}
           </form>
         </div>
@@ -648,6 +649,138 @@ export default function GoldLoanModule() {
         </div>
       </div>
 
+      {/* PENDING APPROVAL REQUESTS SECTION */}
+      {loans.some((l) => l.status === 'PENDING_APPROVAL') && (
+        <div className="glass-panel p-6 rounded-2xl border border-indigo-500/20 bg-indigo-950/5 mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="flex items-center justify-center p-1.5 bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 rounded-lg">
+              <Clock className="h-4 w-4" />
+            </span>
+            <div>
+              <h3 className="text-lg font-bold text-zinc-100 display-font">
+                {activeProfile?.role === 'manager' 
+                  ? 'Pending Gold Loan Authorizations' 
+                  : 'Your Submitted Loan Requests'}
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                {activeProfile?.role === 'manager' 
+                  ? 'The following requests were submitted by clerks and require your authorization to disburse.' 
+                  : 'These requests are currently awaiting manager approval.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-zinc-900/60 border-b border-zinc-900 text-zinc-500 font-bold text-xs uppercase tracking-wider">
+                  <th className="px-4 py-3">Customer</th>
+                  <th className="px-4 py-3">Collateral Metrics</th>
+                  <th className="px-4 py-3">Locker Shelf & Packet</th>
+                  <th className="px-4 py-3">Proposed Disbursal</th>
+                  <th className="px-4 py-3">Payback Details</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-900/60 text-zinc-300">
+                {loans
+                  .filter((l) => l.status === 'PENDING_APPROVAL')
+                  .map((loan) => (
+                    <tr key={loan.id} className="hover:bg-zinc-900/20 transition-colors">
+                      <td className="px-4 py-4 font-bold text-zinc-200">
+                        {loan.customer_name}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="text-zinc-300">{loan.net_weight}g</span>
+                        <span className="text-zinc-500 font-semibold text-xs ml-1 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
+                          {loan.purity.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 font-mono text-zinc-400 text-xs">
+                        {loan.locker_shelf_id} / {loan.packet_number}
+                      </td>
+                      <td className="px-4 py-4 font-black text-indigo-400">
+                        {formatRupee(loan.loan_amount)}
+                      </td>
+                      <td className="px-4 py-4 text-xs text-zinc-400">
+                        Rate: {loan.interest_rate}% | Term: {loan.payback_months}m | Total: {formatRupee(loan.total_payback_amount || 0)}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        {activeProfile?.role === 'manager' ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await db.approveGoldLoan(loan.id);
+                                  loadData();
+                                  setFeedbackMsg("Loan authorized and disbursed successfully.");
+                                  setTimeout(() => setFeedbackMsg(''), 3000);
+                                } catch (err: any) {
+                                  alert(err.message);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg text-xs uppercase tracking-wider transition-all cursor-pointer"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (confirm("Are you sure you want to reject this request?")) {
+                                  try {
+                                    await db.deleteGoldLoan(loan.id);
+                                    loadData();
+                                    setFeedbackMsg("Loan request rejected and discarded.");
+                                    setTimeout(() => setFeedbackMsg(''), 3000);
+                                  } catch (err: any) {
+                                    alert(err.message);
+                                  }
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-red-950/20 hover:bg-red-900/20 border border-red-500/30 text-red-400 font-bold rounded-lg text-xs uppercase tracking-wider transition-all cursor-pointer"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm("Are you sure you want to cancel this request?")) {
+                                try {
+                                  const supabaseClient = createBrowserSupabaseClient();
+                                  if (supabaseClient) {
+                                    const { error } = await supabaseClient.from('gold_loans').delete().eq('id', loan.id);
+                                    if (error) throw error;
+                                  } else {
+                                    // Local Storage fallback
+                                    const list = localStorage.getItem('jrina_gold_loans') ? JSON.parse(localStorage.getItem('jrina_gold_loans')!) : [];
+                                    const filtered = list.filter((l: any) => l.id !== loan.id);
+                                    localStorage.setItem('jrina_gold_loans', JSON.stringify(filtered));
+                                  }
+                                  loadData();
+                                  setFeedbackMsg("Loan request canceled successfully.");
+                                  setTimeout(() => setFeedbackMsg(''), 3000);
+                                } catch (err: any) {
+                                  alert(err.message);
+                                }
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 font-bold rounded-lg text-xs uppercase tracking-wider transition-all cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* LOAN REGISTER LEDGER (Chronological overview) */}
       <div className="glass-panel p-6 rounded-2xl border border-zinc-900 mt-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
@@ -675,7 +808,9 @@ export default function GoldLoanModule() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900/60">
-              {loans.map((loan) => {
+              {loans
+                .filter((l) => l.status !== 'PENDING_APPROVAL')
+                .map((loan) => {
                 const paid = loan.paid_amount || 0;
                 const remaining = loan.remaining_balance !== undefined ? loan.remaining_balance : loan.loan_amount;
                 const pct = loan.paid_percentage || 0;
@@ -768,7 +903,7 @@ export default function GoldLoanModule() {
                 );
               })}
 
-              {loans.length === 0 && (
+              {loans.filter((l) => l.status !== 'PENDING_APPROVAL').length === 0 && (
                 <tr>
                   <td colSpan={activeProfile?.role === 'manager' ? 9 : 8} className="text-center py-6 text-zinc-500">No active loans issued.</td>
                 </tr>

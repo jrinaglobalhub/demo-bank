@@ -51,6 +51,7 @@ export interface GoldLoan {
   interest_rate?: number;
   payback_months?: number;
   total_payback_amount?: number;
+  status?: string;
 }
 
 export interface BiometricCredential {

@@ -586,6 +586,45 @@ export const db = {
     return true;
   },
 
+  async approveGoldLoan(id: string): Promise<boolean> {
+    const activeUser = await this.getActiveUser();
+    if (activeUser.role !== 'manager') {
+      throw new Error('Unauthorized: Manager permission required.');
+    }
+    
+    const list = getLocalData<GoldLoan[]>(STORAGE_KEYS.GOLD_LOANS, []);
+    const loanIndex = list.findIndex((l) => l.id === id);
+    let loan: GoldLoan | undefined;
+
+    if (loanIndex !== -1) {
+      loan = list[loanIndex];
+      list[loanIndex] = { ...loan, status: 'ACTIVE' };
+      setLocalData(STORAGE_KEYS.GOLD_LOANS, list);
+    }
+
+    if (this.isSupabaseEnabled() && supabase) {
+      const { error, data } = await supabase
+        .from('gold_loans')
+        .update({ status: 'ACTIVE' })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) return false;
+      if (data) loan = data as GoldLoan;
+    }
+
+    if (loan) {
+      const customers = await this.getCustomers();
+      const custName = customers.find((c) => c.id === loan!.customer_id)?.name || 'Unknown';
+      await this.createAuditLog(
+        'Gold Loan Approved',
+        `Approved Gold Loan of ₹${loan.loan_amount.toLocaleString('en-IN')} for ${custName}. Status changed to ACTIVE.`,
+        'GOLD_LOAN'
+      );
+    }
+    return true;
+  },
+
   // --- Biometrics ---
   async getBiometricCredentials(): Promise<BiometricCredential[]> {
     const creds = this.isSupabaseEnabled() && supabase
