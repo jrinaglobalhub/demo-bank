@@ -54,6 +54,7 @@ export default function KycModule() {
     aadhaar_file: null as string | null,
     pan_file: null as string | null,
     profile_photo: null as string | null,
+    balance: '500',
   });
 
   // Upload simulation states
@@ -650,6 +651,11 @@ export default function KycModule() {
         throw new Error('Duplication Error: A customer profile with this identity/contact parameter already exists in the ledger.');
       }
 
+      const initialBalance = Number(formData.balance);
+      if (isNaN(initialBalance) || initialBalance < 500) {
+        throw new Error('Initial ledger balance deposit must be at least ₹500.');
+      }
+
       const activeUser = await db.getActiveUser();
       // Managers register as instantly VERIFIED for efficiency, clerks as PENDING
       const initialStatus = activeUser.role === 'manager' ? 'VERIFIED' : 'PENDING_APPROVAL';
@@ -667,6 +673,7 @@ export default function KycModule() {
           pan_doc_url: formData.pan_file || 'mock_pan_file.pdf',
           status: initialStatus,
           profile_photo: formData.profile_photo || null,
+          balance: initialBalance,
         }]);
         if (insertError) throw new Error(insertError.message);
       } else {
@@ -682,6 +689,7 @@ export default function KycModule() {
           pan_doc_url: formData.pan_file || 'mock_pan_file.pdf',
           status: initialStatus,
           profile_photo: formData.profile_photo || undefined,
+          balance: initialBalance,
         });
       }
 
@@ -700,6 +708,7 @@ export default function KycModule() {
         aadhaar_file: null,
         pan_file: null,
         profile_photo: null,
+        balance: '500',
       });
       setFormStep(1);
       setSmsVerified(false);
@@ -993,14 +1002,42 @@ export default function KycModule() {
                   />
                 </div>
 
+                <div className="border-t border-zinc-900 pt-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                      <CreditCard className="h-3.5 w-3.5" />
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-zinc-300">Initial Ledger Deposit / Balance Setup</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      Starting Ledger Balance (Min ₹500)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-zinc-500 font-mono">₹</span>
+                      <input
+                        type="number"
+                        name="balance"
+                        min={500}
+                        placeholder="500"
+                        value={formData.balance}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-zinc-200 font-mono"
+                      />
+                    </div>
+                    <p className="text-[10px] text-zinc-500 mt-1 font-semibold">Specify the starting deposit ledger balance to activate the banking ledger account upon verification.</p>
+                  </div>
+                </div>
+
                 <div className="flex justify-end pt-4">
                   <button
                     type="button"
                     onClick={() => {
-                      if (formData.name && formData.dob && formData.phone && formData.email && formData.address) {
+                      if (formData.name && formData.dob && formData.phone && formData.email && formData.address && Number(formData.balance) >= 500) {
                         setFormStep(2);
                       } else {
-                        alert('Please fill out all Step 1 details.');
+                        alert('Please fill out all Step 1 details and ensure initial deposit is at least ₹500.');
                       }
                     }}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-6 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-[0_4px_12px_rgba(16,185,129,0.2)] hover:shadow-emerald-500/30 cursor-pointer active:scale-95"
