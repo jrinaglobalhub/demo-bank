@@ -5,8 +5,7 @@ export default async function proxy(request: NextRequest) {
   // Define restricted route prefixes
   const isDashboardRoute = request.nextUrl.pathname.startsWith('/dashboard');
   const isManagerRoute = request.nextUrl.pathname.startsWith('/dashboard/staff') || 
-                         request.nextUrl.pathname.startsWith('/dashboard/approvals') ||
-                         request.nextUrl.pathname.startsWith('/dashboard/biometric'); // Biometric approval page
+                         request.nextUrl.pathname.startsWith('/dashboard/approvals');
 
   // If not accessing restricted routes, continue
   if (!isDashboardRoute) {
