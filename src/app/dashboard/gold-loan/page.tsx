@@ -96,10 +96,13 @@ export default function GoldLoanModule() {
   const [requestedAmount, setRequestedAmount] = useState<string>('');
   const [lockerId, setLockerId] = useState('');
   const [packetNumber, setPacketNumber] = useState('');
+  const [interestRate, setInterestRate] = useState('12');
+  const [paybackMonths, setPaybackMonths] = useState('6');
 
   // Live calculation results
   const [netWeight, setNetWeight] = useState(0);
   const [maxLoanAmount, setMaxLoanAmount] = useState(0);
+  const [totalPaybackAmount, setTotalPaybackAmount] = useState(0);
 
   const [submitting, setSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState('');
@@ -180,6 +183,17 @@ export default function GoldLoanModule() {
     }
   }, [grossWeight, wasteWeight, purity]);
 
+  // Live calculation of interest and total payback amount
+  useEffect(() => {
+    const principal = parseFloat(requestedAmount) || 0;
+    const ratePct = parseFloat(interestRate) || 0;
+    const months = parseFloat(paybackMonths) || 0;
+    
+    // Simple Interest / EMI calculations
+    const interest = principal * (ratePct / 100) * (months / 12);
+    setTotalPaybackAmount(Math.round(principal + interest));
+  }, [requestedAmount, interestRate, paybackMonths]);
+
   // Form Submit Handler
   const handleIssueLoan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,7 +221,7 @@ export default function GoldLoanModule() {
       const supabase = createBrowserSupabaseClient();
       
       const mDate = new Date();
-      mDate.setMonth(mDate.getMonth() + 6);
+      mDate.setMonth(mDate.getMonth() + (parseInt(paybackMonths) || 6));
 
       if (supabase) {
         const { error } = await supabase.from('gold_loans').insert([{
@@ -220,7 +234,10 @@ export default function GoldLoanModule() {
           locker_shelf_id: lockerId,
           packet_number: packetNumber,
           status: 'ACTIVE',
-          maturity_date: mDate.toISOString()
+          maturity_date: mDate.toISOString(),
+          interest_rate: parseFloat(interestRate) || 12,
+          payback_months: parseInt(paybackMonths) || 6,
+          total_payback_amount: totalPaybackAmount
         }]);
 
         if (error) throw new Error(error.message);
@@ -237,6 +254,9 @@ export default function GoldLoanModule() {
           loan_amount: loanAmount,
           locker_shelf_id: lockerId,
           packet_number: packetNumber,
+          interest_rate: parseFloat(interestRate) || 12,
+          payback_months: parseInt(paybackMonths) || 6,
+          total_payback_amount: totalPaybackAmount
         });
       }
 
@@ -249,6 +269,8 @@ export default function GoldLoanModule() {
       setRequestedAmount('');
       setLockerId('');
       setPacketNumber('');
+      setInterestRate('12');
+      setPaybackMonths('6');
 
       loadData();
       
@@ -421,6 +443,72 @@ export default function GoldLoanModule() {
                   required
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-emerald-400 placeholder-zinc-700"
                 />
+              </div>
+            </div>
+
+            {/* INTEREST RATE & PAYBACK MONTHS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Interest Rate (% Per Annum)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="1"
+                    max="100"
+                    placeholder="12.0"
+                    value={interestRate}
+                    onChange={(e) => setInterestRate(e.target.value)}
+                    required
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-4 pr-10 py-3.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-indigo-400 placeholder-zinc-700"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">%</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Payback Period (Months)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    max="120"
+                    placeholder="6"
+                    value={paybackMonths}
+                    onChange={(e) => setPaybackMonths(e.target.value)}
+                    required
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-4 pr-16 py-3.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-indigo-400 placeholder-zinc-700"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-zinc-500 uppercase">Months</span>
+                </div>
+              </div>
+            </div>
+
+            {/* LIVE AUTO-CALCULATED PAYBACK DETAILS */}
+            <div className="p-4 bg-indigo-950/10 border border-indigo-500/20 rounded-2xl space-y-2.5">
+              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest text-indigo-400">
+                <Calculator className="h-3.5 w-3.5" />
+                Live Payback Projection (Auto Calculated)
+              </span>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="block text-[9px] font-bold text-zinc-500 uppercase">Monthly EMI Amount</span>
+                  <span className="text-sm font-black text-indigo-400 font-mono">
+                    {paybackMonths && parseFloat(paybackMonths) > 0
+                      ? formatRupee(Math.round(totalPaybackAmount / parseFloat(paybackMonths)))
+                      : formatRupee(0)}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[9px] font-bold text-zinc-500 uppercase">Total Payback (Principal + Interest)</span>
+                  <span className="text-sm font-black text-emerald-400 font-mono">
+                    {formatRupee(totalPaybackAmount)}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -601,6 +689,11 @@ export default function GoldLoanModule() {
                     <td className="px-4 py-4 font-bold text-zinc-200">
                       <div className="flex flex-col">
                         <span>{loan.customer_name}</span>
+                        {loan.interest_rate !== undefined && (
+                          <span className="text-[9px] text-indigo-400 font-extrabold tracking-wide mt-0.5">
+                            % Rate: {loan.interest_rate}% | Term: {loan.payback_months} Months
+                          </span>
+                        )}
                         <span className="text-[10px] text-zinc-500 font-normal mt-0.5">Click to record payment</span>
                       </div>
                     </td>

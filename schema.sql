@@ -64,6 +64,9 @@ CREATE TABLE IF NOT EXISTS public.gold_loans (
     packet_number TEXT NOT NULL,
     maturity_date TIMESTAMP WITH TIME ZONE,
     status TEXT DEFAULT 'ACTIVE',
+    interest_rate NUMERIC DEFAULT 12,
+    payback_months INTEGER DEFAULT 6,
+    total_payback_amount NUMERIC,
     created_by UUID REFERENCES public.profiles(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

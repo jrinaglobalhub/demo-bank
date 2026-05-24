@@ -48,6 +48,9 @@ export interface GoldLoan {
   created_by: string;
   created_at: string;
   maturity_date?: string;     // NPA/Maturity/Closing Date
+  interest_rate?: number;
+  payback_months?: number;
+  total_payback_amount?: number;
 }
 
 export interface BiometricCredential {
@@ -181,6 +184,9 @@ export const MOCK_GOLD_LOANS: GoldLoan[] = [
     created_by: 'e2222222-2222-2222-2222-222222222222',
     created_at: '2026-05-18T12:00:00Z',
     maturity_date: '2026-11-18T12:00:00Z',
+    interest_rate: 12,
+    payback_months: 6,
+    total_payback_amount: 212000,
   },
   {
     id: 'l2222222-2222-2222-2222-222222222222',
@@ -197,6 +203,9 @@ export const MOCK_GOLD_LOANS: GoldLoan[] = [
     created_by: 'e1111111-1111-1111-1111-111111111111',
     created_at: '2026-05-19T10:30:00Z',
     maturity_date: '2026-11-19T10:30:00Z',
+    interest_rate: 12,
+    payback_months: 6,
+    total_payback_amount: 636000,
   },
   {
     id: 'l3333333-3333-3333-3333-333333333333',
@@ -213,6 +222,9 @@ export const MOCK_GOLD_LOANS: GoldLoan[] = [
     created_by: 'e2222222-2222-2222-2222-222222222222',
     created_at: '2026-02-10T12:00:00Z',
     maturity_date: '2026-05-10T12:00:00Z', // Mature passed by 12 days relative to simulated date May 22, 2026
+    interest_rate: 12,
+    payback_months: 3,
+    total_payback_amount: 103000,
   },
   {
     id: 'l4444444-4444-4444-4444-444444444444',
@@ -229,6 +241,9 @@ export const MOCK_GOLD_LOANS: GoldLoan[] = [
     created_by: 'e2222222-2222-2222-2222-222222222222',
     created_at: '2025-10-15T12:00:00Z',
     maturity_date: '2026-01-15T12:00:00Z', // Mature passed by 127 days (>90 days), LISTED FOR AUCTION!
+    interest_rate: 12,
+    payback_months: 3,
+    total_payback_amount: 309000,
   },
 ];
 
