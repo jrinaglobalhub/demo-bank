@@ -123,6 +123,15 @@ export default function KycModule() {
     if (!file) return;
 
     setUploadingPhoto(true);
+
+    // 1. Read file as Base64 Data URL and show it instantly in the frame
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData(prev => ({ ...prev, profile_photo: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+
+    // 2. Upload in background
     try {
       const supabase = createBrowserSupabaseClient();
       if (!supabase) throw new Error('Supabase not configured');
@@ -137,11 +146,7 @@ export default function KycModule() {
       const { data: publicUrlData } = supabase.storage.from('profile-photos').getPublicUrl(`public/${fileName}`);
       setFormData(prev => ({ ...prev, profile_photo: publicUrlData.publicUrl }));
     } catch (err: any) {
-      console.error('Photo upload error:', err);
-      // Fallback
-      const initials = formData.name ? formData.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase() : 'KYC';
-      const mockSvgPhoto = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" fill="%23065f46"/><circle cx="64" cy="48" r="28" fill="%23a7f3d0"/><path d="M24 104c0-22 18-40 40-40s40 18 40 40z" fill="%2334d399"/><text x="64" y="56" font-family="sans-serif" font-size="20" font-weight="bold" fill="%23064e3b" text-anchor="middle">${initials}</text></svg>`;
-      setFormData(prev => ({ ...prev, profile_photo: mockSvgPhoto }));
+      console.warn('Supabase storage photo upload failed, keeping local base64:', err);
     } finally {
       setUploadingPhoto(false);
     }
@@ -190,32 +195,32 @@ export default function KycModule() {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
 
+      // Convert to Base64 Data URL and show it instantly in the frame
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      setFormData(prev => ({ ...prev, profile_photo: dataUrl }));
+
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
       if (!blob) throw new Error("Failed to capture image from webcam canvas.");
 
       const file = new File([blob], `camera_snap_${Date.now()}.jpg`, { type: 'image/jpeg' });
       const supabase = createBrowserSupabaseClient();
       
-      if (!supabase) {
-        // Fallback mock SVG
-        const initials = formData.name ? formData.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase() : 'KYC';
-        const mockSvgPhoto = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" fill="%23065f46"/><circle cx="64" cy="48" r="28" fill="%23a7f3d0"/><path d="M24 104c0-22 18-40 40-40s40 18 40 40z" fill="%2334d399"/><text x="64" y="56" font-family="sans-serif" font-size="20" font-weight="bold" fill="%23064e3b" text-anchor="middle">${initials}</text></svg>`;
-        setFormData(prev => ({ ...prev, profile_photo: mockSvgPhoto }));
-        return;
+      if (supabase) {
+        const fileName = `camera_${Date.now()}.jpg`;
+        const { data, error } = await supabase.storage
+          .from('profile-photos')
+          .upload(`public/${fileName}`, file, { upsert: true });
+
+        if (!error) {
+          const { data: publicUrlData } = supabase.storage.from('profile-photos').getPublicUrl(`public/${fileName}`);
+          setFormData(prev => ({ ...prev, profile_photo: publicUrlData.publicUrl }));
+        } else {
+          console.warn("Supabase camera photo upload failed, keeping base64:", error);
+        }
       }
-
-      const fileName = `camera_${Date.now()}.jpg`;
-      const { data, error } = await supabase.storage
-        .from('profile-photos')
-        .upload(`public/${fileName}`, file, { upsert: true });
-
-      if (error) throw new Error(error.message);
-
-      const { data: publicUrlData } = supabase.storage.from('profile-photos').getPublicUrl(`public/${fileName}`);
-      setFormData(prev => ({ ...prev, profile_photo: publicUrlData.publicUrl }));
     } catch (err: any) {
       console.error("Camera capture error:", err);
-      setFeedbackMsg(`Capture error: ${err.message}`);
+      setFeedbackMsg(`Capture warning: ${err.message || 'using client-side local image preview fallback'}`);
     } finally {
       setUploadingPhoto(false);
     }
@@ -1414,9 +1419,22 @@ export default function KycModule() {
                       <tr key={customer.id} className="hover:bg-zinc-900/20 transition-colors">
                         {/* Name & DOB */}
                         <td className="px-6 py-4">
-                          <div>
-                            <p className="font-bold text-zinc-200">{customer.name}</p>
-                            <p className="text-xs text-zinc-500 mt-0.5">DOB: {customer.dob}</p>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center shrink-0 overflow-hidden text-[10px] font-bold text-indigo-400 font-mono shadow-[0_2px_8px_rgba(99,102,241,0.1)]">
+                              {customer.profile_photo ? (
+                                <img 
+                                  src={customer.profile_photo} 
+                                  alt={customer.name} 
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                customer.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-bold text-zinc-200">{customer.name}</p>
+                              <p className="text-xs text-zinc-500 mt-0.5">DOB: {customer.dob}</p>
+                            </div>
                           </div>
                         </td>
                         {/* Email & Phone */}
