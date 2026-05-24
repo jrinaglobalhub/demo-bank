@@ -27,6 +27,43 @@ export default function BiometricPage() {
   const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState('');
 
+  // Editing Biometrics states
+  const [selectedEditCred, setSelectedEditCred] = useState<BiometricCredential | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editStatus, setEditStatus] = useState<BiometricCredential['status']>('PENDING_APPROVAL');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editFeedback, setEditFeedback] = useState('');
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEditCred) return;
+
+    setEditSubmitting(true);
+    setEditFeedback('');
+
+    try {
+      if (!editName.trim()) {
+        throw new Error('Credential name is required.');
+      }
+      
+      await db.updateBiometric(selectedEditCred.id, {
+        credential_name: editName,
+        status: editStatus
+      });
+
+      setEditFeedback('Credential updated successfully!');
+      loadData();
+      setTimeout(() => {
+        setSelectedEditCred(null);
+        setEditFeedback('');
+      }, 1500);
+    } catch (err: any) {
+      setEditFeedback(`Error: ${err.message}`);
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   const loadData = async () => {
     try {
       const prof = await db.getActiveUser();
@@ -255,7 +292,7 @@ export default function BiometricPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
                         isApproved 
                           ? 'bg-emerald-500/5 text-emerald-400 border-emerald-500/20' 
@@ -264,6 +301,19 @@ export default function BiometricPage() {
                         {isApproved ? <CheckCircle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
                         {cred.status}
                       </span>
+
+                      {currentProfile?.role?.toLowerCase() === 'manager' && (
+                        <button
+                          onClick={() => {
+                            setSelectedEditCred(cred);
+                            setEditName(cred.credential_name);
+                            setEditStatus(cred.status);
+                          }}
+                          className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded border border-zinc-800 hover:text-white transition-all text-[10px] font-bold uppercase tracking-wider cursor-pointer"
+                        >
+                          [ Edit ]
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -278,6 +328,95 @@ export default function BiometricPage() {
         </div>
 
       </div>
+      {/* EDIT BIOMETRIC OVERLAY DIALOG MODAL */}
+      {selectedEditCred && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="glass-panel glass-panel-glow-indigo p-6 md:p-8 rounded-3xl max-w-md w-full relative space-y-6">
+            
+            {/* Close [X] */}
+            <button
+              onClick={() => {
+                setSelectedEditCred(null);
+                setEditFeedback('');
+              }}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 p-2 rounded-full transition-colors cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {/* Title Header */}
+            <div className="flex items-center gap-2 border-b border-zinc-900 pb-4">
+              <Fingerprint className="h-5 w-5 text-indigo-400" />
+              <h3 className="text-xl font-bold text-zinc-100 display-font">Edit Biometric Key</h3>
+            </div>
+
+            {/* Dynamic Feedback Msg */}
+            {editFeedback && (
+              <div className={`p-3 rounded-xl text-xs font-semibold border ${
+                editFeedback.startsWith('Error')
+                  ? 'bg-red-950/20 border-red-900/50 text-red-300'
+                  : 'bg-emerald-950/20 border-emerald-900/50 text-emerald-300'
+              }`}>
+                {editFeedback}
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+                  Credential Name / Device Label
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 text-sm font-bold text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-zinc-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+                  Credential Status
+                </label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as any)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 text-sm font-bold text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="APPROVED">APPROVED (Active)</option>
+                  <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
+                  <option value="REJECTED">REJECTED (Blocked)</option>
+                </select>
+              </div>
+
+              {/* Controls */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={editSubmitting}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-extrabold py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider transition-all shadow-[0_4px_12px_rgba(99,102,241,0.2)] active:scale-95 cursor-pointer"
+                >
+                  {editSubmitting ? 'Saving changes...' : '[ Save Changes ]'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedEditCred(null);
+                    setEditFeedback('');
+                  }}
+                  className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

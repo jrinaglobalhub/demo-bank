@@ -825,6 +825,44 @@ export const db = {
     return true;
   },
 
+  async updateBiometric(id: string, updates: Partial<BiometricCredential>): Promise<boolean> {
+    const activeUser = await this.getActiveUser();
+    if (activeUser.role !== 'manager') {
+      throw new Error('Unauthorized: Only Manager/Admin can update biometrics.');
+    }
+
+    if (this.isSupabaseEnabled() && supabase) {
+      const { error } = await supabase
+        .from('biometric_credentials')
+        .update(updates)
+        .eq('id', id);
+      if (error) {
+        console.error('Supabase biometric update failed:', error);
+        throw new Error(error.message);
+      }
+    } else {
+      const list = getLocalData<BiometricCredential[]>(STORAGE_KEYS.BIOMETRICS, []).map((b) => {
+        if (b.id === id) {
+          return { ...b, ...updates };
+        }
+        return b;
+      });
+      setLocalData(STORAGE_KEYS.BIOMETRICS, list);
+    }
+
+    const creds = await this.getBiometricCredentials();
+    const cred = creds.find((c) => c.id === id);
+    if (cred) {
+      await this.createAuditLog(
+        'Biometric Updated',
+        `Manager ${activeUser.name} UPDATED biometric credential '${cred.credential_name}' details: ${JSON.stringify(updates)}`,
+        'BIOMETRIC'
+      );
+    }
+
+    return true;
+  },
+
   // --- Staff Management CRUD ---
   async createStaffProfile(staffData: Omit<Profile, 'id' | 'created_at'>, password?: string): Promise<Profile> {
     const activeUser = await this.getActiveUser();
