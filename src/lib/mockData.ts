@@ -52,6 +52,7 @@ export interface GoldLoan {
   payback_months?: number;
   total_payback_amount?: number;
   status?: string;
+  interest_method?: 'flat' | 'reducing';
 }
 
 export interface BiometricCredential {

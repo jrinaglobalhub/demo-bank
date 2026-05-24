@@ -98,6 +98,7 @@ export default function GoldLoanModule() {
   const [packetNumber, setPacketNumber] = useState('');
   const [interestRate, setInterestRate] = useState('12');
   const [paybackMonths, setPaybackMonths] = useState('6');
+  const [interestMethod, setInterestMethod] = useState<'flat' | 'reducing'>('reducing');
 
   // Live calculation results
   const [netWeight, setNetWeight] = useState(0);
@@ -189,10 +190,25 @@ export default function GoldLoanModule() {
     const ratePct = parseFloat(interestRate) || 0;
     const months = parseFloat(paybackMonths) || 0;
     
-    // Simple Interest / EMI calculations
-    const interest = principal * (ratePct / 100) * (months / 12);
-    setTotalPaybackAmount(Math.round(principal + interest));
-  }, [requestedAmount, interestRate, paybackMonths]);
+    if (principal <= 0 || months <= 0) {
+      setTotalPaybackAmount(0);
+      return;
+    }
+
+    if (interestMethod === 'reducing') {
+      const monthlyRate = (ratePct / 100) / 12;
+      if (monthlyRate === 0) {
+        setTotalPaybackAmount(Math.round(principal));
+      } else {
+        const emi = (principal * monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1);
+        setTotalPaybackAmount(Math.round(emi * months));
+      }
+    } else {
+      // Flat Interest Method
+      const interest = principal * (ratePct / 100) * (months / 12);
+      setTotalPaybackAmount(Math.round(principal + interest));
+    }
+  }, [requestedAmount, interestRate, paybackMonths, interestMethod]);
 
   // Form Submit Handler
   const handleIssueLoan = async (e: React.FormEvent) => {
@@ -238,7 +254,8 @@ export default function GoldLoanModule() {
           maturity_date: mDate.toISOString(),
           interest_rate: parseFloat(interestRate) || 12,
           payback_months: parseInt(paybackMonths) || 6,
-          total_payback_amount: totalPaybackAmount
+          total_payback_amount: totalPaybackAmount,
+          interest_method: interestMethod
         }]);
 
         if (error) throw new Error(error.message);
@@ -258,7 +275,8 @@ export default function GoldLoanModule() {
           interest_rate: parseFloat(interestRate) || 12,
           payback_months: parseInt(paybackMonths) || 6,
           total_payback_amount: totalPaybackAmount,
-          status: initialStatus
+          status: initialStatus,
+          interest_method: interestMethod
         });
       }
 
@@ -277,6 +295,7 @@ export default function GoldLoanModule() {
       setPacketNumber('');
       setInterestRate('12');
       setPaybackMonths('6');
+      setInterestMethod('reducing');
 
       loadData();
       
@@ -452,6 +471,21 @@ export default function GoldLoanModule() {
               </div>
             </div>
 
+            {/* INTEREST CALCULATION METHOD */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                Interest Calculation Scheme
+              </label>
+              <select
+                value={interestMethod}
+                onChange={(e: any) => setInterestMethod(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-zinc-200"
+              >
+                <option value="reducing">EMI Scheme (Reducing Balance Method)</option>
+                <option value="flat">Flat Interest Method</option>
+              </select>
+            </div>
+
             {/* INTEREST RATE & PAYBACK MONTHS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -496,9 +530,14 @@ export default function GoldLoanModule() {
 
             {/* LIVE AUTO-CALCULATED PAYBACK DETAILS */}
             <div className="p-4 bg-indigo-950/10 border border-indigo-500/20 rounded-2xl space-y-2.5">
-              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest text-indigo-400">
-                <Calculator className="h-3.5 w-3.5" />
-                Live Payback Projection (Auto Calculated)
+              <span className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-widest text-indigo-400">
+                <span className="flex items-center gap-1.5">
+                  <Calculator className="h-3.5 w-3.5" />
+                  Live Payback Projection (Auto Calculated)
+                </span>
+                <span className="px-2 py-0.5 bg-indigo-500/20 border border-indigo-500/30 rounded text-[9px] font-bold tracking-wide">
+                  {interestMethod === 'reducing' ? 'Reducing Balance EMI' : 'Flat Interest Method'}
+                </span>
               </span>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -703,7 +742,13 @@ export default function GoldLoanModule() {
                         {formatRupee(loan.loan_amount)}
                       </td>
                       <td className="px-4 py-4 text-xs text-zinc-400">
-                        Rate: {loan.interest_rate}% | Term: {loan.payback_months}m | Total: {formatRupee(loan.total_payback_amount || 0)}
+                        <div>
+                          <p>Rate: {loan.interest_rate}% | Term: {loan.payback_months}m</p>
+                          <p className="text-[10px] text-zinc-500 font-medium">
+                            Scheme: {loan.interest_method === 'flat' ? 'Flat Interest' : 'Reducing EMI'}
+                          </p>
+                          <p className="text-[10px] text-indigo-400 font-bold mt-0.5">Total: {formatRupee(loan.total_payback_amount || 0)}</p>
+                        </div>
                       </td>
                       <td className="px-4 py-4 text-right">
                         {activeProfile?.role === 'manager' ? (
@@ -826,7 +871,7 @@ export default function GoldLoanModule() {
                         <span>{loan.customer_name}</span>
                         {loan.interest_rate !== undefined && (
                           <span className="text-[9px] text-indigo-400 font-extrabold tracking-wide mt-0.5">
-                            % Rate: {loan.interest_rate}% | Term: {loan.payback_months} Months
+                            % Rate: {loan.interest_rate}% | Term: {loan.payback_months} Months ({loan.interest_method === 'flat' ? 'Flat' : 'Reducing'})
                           </span>
                         )}
                         <span className="text-[10px] text-zinc-500 font-normal mt-0.5">Click to record payment</span>

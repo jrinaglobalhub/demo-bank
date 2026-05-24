@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS public.gold_loans (
     interest_rate NUMERIC DEFAULT 12,
     payback_months INTEGER DEFAULT 6,
     total_payback_amount NUMERIC,
+    interest_method TEXT DEFAULT 'flat',
     created_by UUID REFERENCES public.profiles(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
