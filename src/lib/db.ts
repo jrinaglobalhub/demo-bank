@@ -676,6 +676,28 @@ export const db = {
 
   async registerBiometric(credentialName: string, actualCredId?: string, actualPubKey?: string): Promise<BiometricCredential> {
     const activeUser = await this.getActiveUser();
+
+    // Check if the user already has a biometric credential (approved or pending)
+    if (this.isSupabaseEnabled() && supabase) {
+      const { data: existing, error: checkError } = await supabase
+        .from('biometric_credentials')
+        .select('id, status')
+        .eq('profile_id', activeUser.id);
+      
+      if (!checkError && existing) {
+        const hasValid = existing.some((c: any) => c.status === 'APPROVED' || c.status === 'PENDING_APPROVAL');
+        if (hasValid) {
+          throw new Error('Workstation registry restriction: Only a single fingerprint credential is permitted per employee.');
+        }
+      }
+    } else {
+      const list = getLocalData<BiometricCredential[]>(STORAGE_KEYS.BIOMETRICS, MOCK_BIOMETRIC_CREDENTIALS);
+      const userCreds = list.filter((b) => b.profile_id === activeUser.id && (b.status === 'APPROVED' || b.status === 'PENDING_APPROVAL'));
+      if (userCreds.length > 0) {
+        throw new Error('Workstation registry restriction: Only a single fingerprint credential is permitted per employee.');
+      }
+    }
+
     const credId = actualCredId || `cred_simulated_${Date.now()}`;
     const pubKey = actualPubKey || `mock_public_key_simulated_${Math.random().toString(36).substring(2)}`;
     
