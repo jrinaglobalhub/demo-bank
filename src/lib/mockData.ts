@@ -27,6 +27,8 @@ export interface Customer {
   profile_photo?: string;    // base64 photo capture
   suspension_reason?: string;
   suspension_requested_by?: string;
+  account_number?: string;
+  ifsc_code?: string;
 }
 
 export interface GoldLoan {

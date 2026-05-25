@@ -1438,6 +1438,7 @@ export default function KycModule() {
                     <th className="px-6 py-4">Customer Details</th>
                     <th className="px-6 py-4">Contact Info</th>
                     <th className="px-6 py-4">Identity Credentials</th>
+                    <th className="px-6 py-4">Account Details</th>
                     <th className="px-6 py-4">KYC Status</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
@@ -1485,6 +1486,19 @@ export default function KycModule() {
                             <div className="flex items-center gap-1.5 text-xs text-zinc-300">
                               <span className="font-semibold text-zinc-500">PAN:</span>
                               <span className="font-mono">{customer.pan_number}</span>
+                            </div>
+                          </div>
+                        </td>
+                        {/* Account Details */}
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-xs text-zinc-300">
+                              <span className="font-semibold text-zinc-500">ACC NO:</span>
+                              <span className="font-mono text-indigo-400 font-bold">{customer.account_number}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-zinc-300">
+                              <span className="font-semibold text-zinc-500">IFSC:</span>
+                              <span className="font-mono text-zinc-400">{customer.ifsc_code}</span>
                             </div>
                           </div>
                         </td>
@@ -1731,10 +1745,16 @@ export default function KycModule() {
               </div>
 
               {/* Ledger & Card parameters (Split layout) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-zinc-900 pt-5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-zinc-900 pt-5">
                 <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
                   <span className="block text-[9px] font-extrabold uppercase tracking-widest text-emerald-400 mb-1">Available Ledger Balance</span>
                   <h4 className="text-2xl font-black text-emerald-400 display-font">{formatRupee(mockBalance)}</h4>
+                </div>
+
+                <div className="p-4 bg-zinc-900/50 border border-zinc-900 rounded-2xl">
+                  <span className="block text-[9px] font-extrabold uppercase tracking-widest text-indigo-400 mb-1.5">Corporate Account Details</span>
+                  <p className="text-xs text-zinc-400 font-bold">ACC: <span className="font-mono text-zinc-200">{selectedViewCustomer.account_number}</span></p>
+                  <p className="text-xs text-zinc-400 font-bold mt-1">IFSC: <span className="font-mono text-zinc-200">{selectedViewCustomer.ifsc_code}</span></p>
                 </div>
 
                 <div className="p-4 bg-zinc-900/50 border border-zinc-900 rounded-2xl">

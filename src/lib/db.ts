@@ -236,9 +236,21 @@ export const db = {
     // Hydrate persistent balances dynamically if missing
     return list.map((cust) => {
       const bal = cust.balance !== undefined ? cust.balance : ((cust.name.charCodeAt(0) * 452) + 12400);
+
+      // Stable Account number generation (11 digits) from UUID
+      let hash = 0;
+      for (let i = 0; i < cust.id.length; i++) {
+        hash = (hash * 31 + cust.id.charCodeAt(i)) % 100000000000;
+      }
+      const accNumVal = (50000000000 + Math.abs(hash % 50000000000)).toString();
+      const lastFour = accNumVal.substring(accNumVal.length - 4);
+      const ifscVal = `JRBNK000${lastFour}`;
+
       return {
         ...cust,
         balance: bal,
+        account_number: cust.account_number || accNumVal,
+        ifsc_code: cust.ifsc_code || ifscVal,
       };
     }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   },
