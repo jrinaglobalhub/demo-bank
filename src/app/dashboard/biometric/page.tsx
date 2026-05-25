@@ -64,6 +64,29 @@ export default function BiometricPage() {
     }
   };
 
+  const handleDeleteClick = async () => {
+    if (!selectedEditCred) return;
+    if (!window.confirm(`Are you sure you want to permanently delete the biometric credential '${selectedEditCred.credential_name}'?`)) {
+      return;
+    }
+
+    setEditSubmitting(true);
+    setEditFeedback('');
+
+    try {
+      await db.deleteBiometric(selectedEditCred.id);
+      setEditFeedback('Credential deleted successfully!');
+      loadData();
+      setTimeout(() => {
+        setSelectedEditCred(null);
+        setEditFeedback('');
+      }, 1500);
+    } catch (err: any) {
+      setEditFeedback(`Error: ${err.message}`);
+      setEditSubmitting(false);
+    }
+  };
+
   const loadData = async () => {
     try {
       const prof = await db.getActiveUser();
@@ -410,6 +433,19 @@ export default function BiometricPage() {
                   className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
                 >
                   Cancel
+                </button>
+              </div>
+
+              {/* Delete Action */}
+              <div className="border-t border-zinc-900 pt-4 mt-2">
+                <button
+                  type="button"
+                  onClick={handleDeleteClick}
+                  disabled={editSubmitting}
+                  className="w-full bg-red-950/40 hover:bg-red-900/60 border border-red-900/30 text-red-300 font-extrabold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Delete Biometric Key
                 </button>
               </div>
             </form>

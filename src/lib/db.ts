@@ -863,6 +863,35 @@ export const db = {
     return true;
   },
 
+  async deleteBiometric(id: string): Promise<boolean> {
+    const activeUser = await this.getActiveUser();
+    if (activeUser.role !== 'manager') {
+      throw new Error('Unauthorized: Only Manager/Admin can delete biometrics.');
+    }
+
+    if (this.isSupabaseEnabled() && supabase) {
+      const { error } = await supabase
+        .from('biometric_credentials')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        console.error('Supabase biometric deletion failed:', error);
+        throw new Error(error.message);
+      }
+    } else {
+      const list = getLocalData<BiometricCredential[]>(STORAGE_KEYS.BIOMETRICS, []).filter((b) => b.id !== id);
+      setLocalData(STORAGE_KEYS.BIOMETRICS, list);
+    }
+
+    await this.createAuditLog(
+      'Biometric Deleted',
+      `Manager ${activeUser.name} DELETED biometric credential record: ${id}`,
+      'BIOMETRIC'
+    );
+
+    return true;
+  },
+
   // --- Staff Management CRUD ---
   async createStaffProfile(staffData: Omit<Profile, 'id' | 'created_at'>, password?: string): Promise<Profile> {
     const activeUser = await this.getActiveUser();
