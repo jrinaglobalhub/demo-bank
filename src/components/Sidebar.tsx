@@ -16,6 +16,7 @@ import {
   Landmark
 } from 'lucide-react';
 import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 
 interface Profile {
   id: string;
@@ -38,6 +39,9 @@ export default function Sidebar() {
       return;
     }
 
+    // Cache object to store credentials for synchronous keepalive calls during page unload
+    const sessionCredentials = { userId: '', token: '' };
+
     // 1. Hard Refresh (Reload) Detection
     const navigation = typeof window !== 'undefined' && performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
     const isReload = navigation && navigation.type === 'reload';
@@ -57,6 +61,10 @@ export default function Sidebar() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
+          // Cache session details
+          sessionCredentials.userId = session.user.id;
+          sessionCredentials.token = session.access_token;
+
           // Initialize session start time if not set
           if (!localStorage.getItem('session_start_time')) {
             localStorage.setItem('session_start_time', Date.now().toString());
@@ -67,6 +75,13 @@ export default function Sidebar() {
             .select('*')
             .eq('id', session.user.id)
             .single();
+
+          if (profile) {
+            // Set online status in database
+            if (profile.status !== 'ONLINE') {
+              await db.updateProfileStatus(session.user.id, 'ONLINE');
+            }
+          }
 
           setUser({
             id: session.user.id,
@@ -88,6 +103,9 @@ export default function Sidebar() {
     // 3. Setup auth change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       if (session?.user) {
+        sessionCredentials.userId = session.user.id;
+        sessionCredentials.token = session.access_token;
+
         if (!localStorage.getItem('session_start_time')) {
           localStorage.setItem('session_start_time', Date.now().toString());
         }
@@ -97,6 +115,10 @@ export default function Sidebar() {
             .select('*')
             .eq('id', session.user.id)
             .single();
+
+          if (profile && profile.status !== 'ONLINE') {
+            await db.updateProfileStatus(session.user.id, 'ONLINE');
+          }
 
           setUser({
             id: session.user.id,
@@ -115,6 +137,8 @@ export default function Sidebar() {
       } else {
         localStorage.removeItem('session_start_time');
         setUser(null);
+        sessionCredentials.userId = '';
+        sessionCredentials.token = '';
       }
       setLoading(false);
     });
@@ -128,15 +152,39 @@ export default function Sidebar() {
         if (elapsed > 1 * 60 * 60 * 1000) { // 1 hour
           console.log("[Auth] Session expired (1 hour limit reached). Logging out.");
           localStorage.removeItem('session_start_time');
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            await db.updateProfileStatus(session.user.id, 'OFFLINE');
+          }
           await supabase.auth.signOut();
           window.location.href = '/';
         }
       }
     }, 5000);
 
+    // 5. Handle Tab / Window Close to set status to OFFLINE
+    const handleBeforeUnload = () => {
+      if (sessionCredentials.userId && sessionCredentials.token) {
+        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/profiles?id=eq.${sessionCredentials.userId}`;
+        fetch(url, {
+          method: 'PATCH',
+          headers: {
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${sessionCredentials.token}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ status: 'OFFLINE' }),
+          keepalive: true
+        });
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
       subscription.unsubscribe();
       clearInterval(timeoutInterval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, []);
 

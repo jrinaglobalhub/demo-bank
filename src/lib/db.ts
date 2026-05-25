@@ -106,6 +106,10 @@ export const db = {
             .single();
 
           if (profile) {
+            if (profile.status !== 'ONLINE') {
+              supabase.from('profiles').update({ status: 'ONLINE' }).eq('id', authUser.user.id).then();
+              profile.status = 'ONLINE';
+            }
             cachedActiveUser = profile;
             lastFetchTime = now;
             return profile;
@@ -155,12 +159,28 @@ export const db = {
     const profiles = getLocalData<Profile[]>(STORAGE_KEYS.PROFILES, MOCK_PROFILES);
     const activeId = getLocalData<string>(STORAGE_KEYS.ACTIVE_USER_ID, MOCK_PROFILES[1].id);
     const active = profiles.find((p) => p.id === activeId) || profiles[1];
+    
+    if (active.status !== 'ONLINE') {
+      const updated = profiles.map((p) => {
+        if (p.id === active.id) return { ...p, status: 'ONLINE' as const };
+        return { ...p, status: 'OFFLINE' as const };
+      });
+      setLocalData(STORAGE_KEYS.PROFILES, updated);
+      active.status = 'ONLINE';
+    }
     return active;
   },
 
   async switchActiveUser(role: 'manager' | 'clerk'): Promise<Profile> {
     const profiles = getLocalData<Profile[]>(STORAGE_KEYS.PROFILES, MOCK_PROFILES);
     const target = profiles.find((p) => p.role === role) || profiles[1];
+    
+    // Set target to ONLINE and all others to OFFLINE
+    const updated = profiles.map((p) => {
+      if (p.id === target.id) return { ...p, status: 'ONLINE' as const };
+      return { ...p, status: 'OFFLINE' as const };
+    });
+    setLocalData(STORAGE_KEYS.PROFILES, updated);
     setLocalData(STORAGE_KEYS.ACTIVE_USER_ID, target.id);
 
     // Log the switch
@@ -179,6 +199,25 @@ export const db = {
       if (data) return data;
     }
     return getLocalData<Profile[]>(STORAGE_KEYS.PROFILES, MOCK_PROFILES);
+  },
+
+  async updateProfileStatus(id: string, status: 'ONLINE' | 'OFFLINE'): Promise<void> {
+    if (this.isSupabaseEnabled() && supabase) {
+      await supabase
+        .from('profiles')
+        .update({ status })
+        .eq('id', id);
+    } else {
+      const list = getLocalData<Profile[]>(STORAGE_KEYS.PROFILES, MOCK_PROFILES);
+      const updated = list.map((p) => {
+        if (p.id === id) return { ...p, status };
+        if (status === 'ONLINE' && p.id !== id) {
+          return { ...p, status: 'OFFLINE' as const };
+        }
+        return p;
+      });
+      setLocalData(STORAGE_KEYS.PROFILES, updated);
+    }
   },
 
   // --- Customers (KYC) ---

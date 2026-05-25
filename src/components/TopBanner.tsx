@@ -45,6 +45,11 @@ export default function TopBanner() {
   const handleLogout = async () => {
     // Audit log before leaving
     if (profile) {
+      try {
+        await db.updateProfileStatus(profile.id, 'OFFLINE');
+      } catch (err) {
+        console.error("Error setting offline status on logout:", err);
+      }
       await db.createAuditLog(
         'User logout',
         `User ${profile.name} logged out from the enterprise session.`,
